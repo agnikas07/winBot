@@ -1,9 +1,8 @@
-# google_sheet_utils.py
 import gspread
 from google.oauth2.service_account import Credentials
 import os
 from datetime import datetime, timedelta
-import traceback # For detailed error logging
+import traceback
 
 SCOPE = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file']
 
@@ -12,7 +11,7 @@ def get_sheet():
     try:
         google_service_account_file = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE')
         google_sheet_name = os.getenv('GOOGLE_SHEET_NAME')
-        google_sheet_id = os.getenv('GOOGLE_SPREADSHEET_ID') # For opening by ID
+        google_sheet_id = os.getenv('GOOGLE_SPREADSHEET_ID')
         google_sheet_worksheet_name = os.getenv('GOOGLE_SHEET_WORKSHEET_NAME')
 
         if not google_service_account_file:
@@ -116,9 +115,9 @@ def get_weekly_leaderboard_data(sheet):
 
     sales_in_week_count = 0
     for i, sale_record in enumerate(all_sales):
-        sale_date = None # Reset for each record
+        sale_date = None
         try:
-            timestamp_value = sale_record.get(timestamp_column) # This is the raw value from sheet
+            timestamp_value = sale_record.get(timestamp_column)
             print(f"DEBUG_GSU_DETAIL: Row {i+1}: Raw timestamp_value from sheet for column '{timestamp_column}': '{timestamp_value}', Type: {type(timestamp_value)}")
             
             first_name = sale_record.get(first_name_column)
@@ -131,18 +130,17 @@ def get_weekly_leaderboard_data(sheet):
             else: 
                 premium_str = "0"
 
-            if timestamp_value is None or timestamp_value == '': # Check if timestamp_value is empty or None
+            if timestamp_value is None or timestamp_value == '':
                 print(f"DEBUG_GSU_DETAIL: Row {i+1} skipped - timestamp_value is None or empty for column '{timestamp_column}'. Record: {sale_record}")
                 continue
             if not first_name:
-                # print(f"DEBUG_GSU_DETAIL: Row {i+1} skipped - missing name for column '{first_name_column}'. Record: {sale_record}")
                 continue
 
-            ts_to_parse = str(timestamp_value).strip() # Ensure it's a string for strptime
+            ts_to_parse = str(timestamp_value).strip()
             print(f"DEBUG_GSU_DETAIL: Row {i+1}: Attempting to parse ts_to_parse: '{ts_to_parse}' (original type: {type(timestamp_value)})")
 
             common_formats = [
-                '%Y-%m-%d %H:%M:%S',    # Primary expected format
+                '%Y-%m-%d %H:%M:%S',
                 '%Y-%m-%dT%H:%M:%S%z', 
                 '%m/%d/%Y %I:%M:%S %p', 
                 '%m/%d/%Y %H:%M',       
@@ -150,8 +148,7 @@ def get_weekly_leaderboard_data(sheet):
                 '%m/%d/%Y'              
             ]
             
-            # Clean timezone for strptime if necessary
-            if '+' in ts_to_parse and not any('%z' in fmt for fmt in common_formats if fmt == '%Y-%m-%dT%H:%M:%S%z'): # Avoid double handling
+            if '+' in ts_to_parse and not any('%z' in fmt for fmt in common_formats if fmt == '%Y-%m-%dT%H:%M:%S%z'):
                  ts_to_parse_cleaned = ts_to_parse.split('+')[0].strip()
             elif ts_to_parse.upper().endswith('Z') and not any('%z' in fmt for fmt in common_formats if fmt == '%Y-%m-%dT%H:%M:%S%z'):
                  ts_to_parse_cleaned = ts_to_parse[:-1].strip()
@@ -164,7 +161,7 @@ def get_weekly_leaderboard_data(sheet):
                     print(f"DEBUG_GSU_DETAIL: Row {i+1}: SUCCESS - Parsed '{ts_to_parse_cleaned}' with format '{fmt}' -> {sale_date}")
                     break 
                 except ValueError:
-                    # print(f"DEBUG_GSU_DETAIL: Row {i+1}: FAILED - Parsing '{ts_to_parse_cleaned}' with format '{fmt}'") # Verbose
+                    print(f"DEBUG_GSU_DETAIL: Row {i+1}: FAILED - Parsing '{ts_to_parse_cleaned}' with format '{fmt}'")
                     continue
             
             if sale_date is None:
@@ -192,7 +189,7 @@ def get_weekly_leaderboard_data(sheet):
     print(f"DEBUG_GSU: Processed {len(all_sales)} sales. Found {sales_in_week_count} sales in the current week.")
     print(f"DEBUG_GSU: Final leaderboard data before sorting: {leaderboard}")
     
-    if not leaderboard and len(all_sales) > 0 and sales_in_week_count == 0 : # Added more conditions for this message
+    if not leaderboard and len(all_sales) > 0 and sales_in_week_count == 0 :
         print("DEBUG_GSU_INFO: Leaderboard is empty because no sales from the sheet fell into the current week's date range after parsing.")
     elif not leaderboard:
          print("DEBUG_GSU_INFO: Leaderboard dictionary is empty after processing all sales (either no sales at all or none qualified).")
