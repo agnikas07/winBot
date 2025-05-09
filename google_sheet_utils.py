@@ -38,8 +38,8 @@ def get_sheet():
                 print(f"DEBUG_GSU_ERROR: API error opening spreadsheet by ID '{google_sheet_id}': {e}. Falling back to name if available.")
                 if not google_sheet_name:
                     return None
-            except Exception as e:
-                print(f"DEBUG_GSU_ERROR: Error opening spreadsheet by ID '{google_sheet_id}': {e}. Falling back to name if available.")
+            except Exception:
+                print(f"DEBUG_GSU_ERROR: Error opening spreadsheet by ID '{google_sheet_id}'. Falling back to name if available.")
                 if not google_sheet_name:
                     return None
         
@@ -70,7 +70,7 @@ def get_sheet():
     except FileNotFoundError:
         print(f"DEBUG_GSU_ERROR: Service account JSON file not found at path: {os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE')}")
         return None
-    except Exception as e:
+    except Exception:
         print("DEBUG_GSU_ERROR: An unexpected error occurred in get_sheet:")
         traceback.print_exc()
         return None
