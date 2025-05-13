@@ -14,6 +14,7 @@ load_dotenv()
 # --- Bot Setup ---
 intents = discord.Intents.default()
 intents.message_content = True
+intents.messages = True
 # intents.members = True # If you need member details beyond context
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -209,6 +210,13 @@ async def check_for_new_sales():
 @bot.command(name='leaderboard', help='Displays the weekly sales leaderboard.')
 async def leaderboard_command(ctx): 
     await generate_and_post_leaderboard(ctx)
+
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        await bot.process_commands(message)
+    else:
+        await bot.process_commands(message)
 
 # --- Task: Automated Weekly Leaderboard Post ---
 @tasks.loop(hours=6)
