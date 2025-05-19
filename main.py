@@ -73,7 +73,13 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
             description=f"Sales from {start_of_week.strftime('%b %d, %Y')} to {end_of_week.strftime('%b %d, %Y')}",
             color=discord.Color.gold()
         )
-        embed.set_footer(text=f"Last updated: {dt.now().strftime('%Y-%m-%d %I:%M %p %Z')}")
+        total_premium_sum = sum(
+            v for v in leaderboard_data.values() if isinstance(v, (int, float))
+        )
+        embed.set_footer(
+            text=f"Last updated: {dt.now().strftime('%Y-%m-%d %I:%M %p %Z')}\n"
+                 f"Total Premium (All Agents): ${total_premium_sum:,.2f}"
+        )
 
         position = 1
         for name, total_premium in leaderboard_data.items():
