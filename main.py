@@ -1,5 +1,5 @@
 # main.py
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt, time, timedelta
 import discord
 from discord.ext import commands, tasks
 import gspread
@@ -61,7 +61,7 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
         leaderboard_data = gsu.get_weekly_leaderboard_data(sheet)
 
         if not leaderboard_data:
-            await destination.send("No sales recorded this week, or unable to process data for the leaderboard.")
+            await destination.send("No sales recorded yet this week.")
             return
 
         today = dt.now()
@@ -115,6 +115,60 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
         print(f"Error in generate_and_post_leaderboard: {e}")
         traceback.print_exc()
 
+async def announce_weekly_winner(destination: discord.abc.Messageable):
+    """
+    Fetches the weekly sales leaderboard, identifies the top salesperson,
+    and posts an announncement message in the given destination.
+    """
+    sheet = gsu.get_sheet()
+    if not sheet:
+        try:
+            await destination.send("Sorry, I couldnt connect to the sales data sheet right now for the weekly winner announcement. Please try again later.")
+        except discord.errors.Forbidden:
+            print(f"Error: Bot does not have permission to send messages in {destination}")
+        except Exception as e:
+            print(f"Error sending sheet connection error message: {e}")
+        return
+    
+    try:
+        leaderboard_data = gsu.get_weekly_leaderboard_data(sheet)
+
+        if not leaderboard_data:
+            await destination.send("No sales recorded this week.")
+            return
+        
+        winner_name, winner_premium = list(leaderboard_data.items())[0]
+
+        formatted_premium = f"${winner_premium:,.2f}" if isinstance(winner_premium, (int, float)) else str(winner_premium)
+
+        today = dt.now()
+        start_of_week = today - timedelta(days=today.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+
+        embed = discord.Embed(
+            title="🎉 Weekly Leaderboard Champion! 🎉",
+            description=f"Congratulations to the top performer for the week of {start_of_week.strftime('%b %d')} - {end_of_week.strftime('%b %d, %Y')}!",
+            color=discord.Color.gold()
+        )
+        embed.add_field(
+            name=f"🏆 {winner_name} 🏆",
+            value=f"With a total annual premium sold of **{formatted_premium}**!",
+            inline=False
+        )
+        embed.set_footer(text=f"Announcement generated on {dt.now().strftime('%Y-%m-%d %I:%M %p %Z')}")
+
+        await destination.send(embed=embed)
+
+    except gspread.exceptions.APIError as e:
+        await destination.send("There was an API error trying to fetch leaderboard data. Please try again later.")
+        print(f"Google Sheets API Error during weekly winner announcement: {e}")
+    except discord.errors.Forbidden:
+        print(f"Error: Bot does not have permission to send weekly winner announcement message in {destination}")
+    except Exception as e:
+        await destination.send("An unexpected error occurred while generating the weekly winner announcement.")
+        print(f"Error in announce_weekly_winner: {e}")
+        traceback.print_exc()
+
 # --- Event: Bot Ready ---
 @bot.event
 async def on_ready():
@@ -125,6 +179,40 @@ async def on_ready():
         check_for_new_sales.start()
     if not automated_leaderboard_poster.is_running():
         automated_leaderboard_poster.start()
+    if not announce_top_of_leaderboard_weekly.is_running():
+        announce_top_of_leaderboard_weekly.start()
+
+weekly_winner_announcement_time_utc = time(23,55,0)
+
+@tasks.loop(time=weekly_winner_announcement_time_utc)
+async def announce_top_of_leaderboard_weekly():
+    if dt.utcnow().weekday() == 6:
+        channel_id_str = os.getenv("AUTOMATED_LEADERBOARD_CHANNEL_ID")
+        
+        if not channel_id_str:
+            print("Error: AUTOMATED_LEADERBOARD_CHANNEL_ID is not set in .env. Weekly winner announcement will not be posted.")
+            return
+        try:
+            channel_id = int(channel_id_str)
+        except ValueError:
+            print(f"Error: AUTOMATED_LEADERBOARD_CHANNEL_ID '{channel_id_str}' is not a valid integer.")
+            return
+        
+        channel = bot.get_channel(channel_id)
+        if channel:
+            print(f"Posting weekly winner announcement to channel: {channel.name} ({channel.id})")
+            await announce_weekly_winner(channel)
+        else:
+            print(f"Error: Weekly winner announcement channel ID {channel_id} not found or bot cannot access it.")
+    
+    else:
+        print(f"Skipping weekly winner announcement. Today is not Sunday (UTC). Current day: {dt.utcnow().strftime('%A')}")
+
+@announce_top_of_leaderboard_weekly.before_loop
+async def before_announce_top_of_leaderboard_weekly():
+    print('Waiting for bot to be ready before starting the weekly winner announcement task...')
+    await bot.wait_until_ready()
+    print('Bot is ready, starting the weekly winner announcement task.')
 
 # --- Task: Check for New Sales (Polling) ---
 @tasks.loop(seconds=60)
@@ -225,7 +313,7 @@ async def on_message(message):
         await bot.process_commands(message)
 
 # --- Task: Automated Weekly Leaderboard Post ---
-@tasks.loop(hours=6)
+@tasks.loop(hours=8)
 async def automated_leaderboard_poster():
     automated_leaderboard_channel_id_str = os.getenv("AUTOMATED_LEADERBOARD_CHANNEL_ID")
     if not automated_leaderboard_channel_id_str:
