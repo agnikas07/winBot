@@ -343,3 +343,5 @@ if __name__ == "__main__":
         print("Error: GOOGLE_SERVICE_ACCOUNT_FILE is not set in .env (needed for Google Sheets connection)")
     else:
         bot.run(discord_bot_token)
+
+#This is a test commit to check if the CI/CD pipeline is working correctly.
