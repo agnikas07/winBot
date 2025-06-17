@@ -222,7 +222,7 @@ async def on_message(message):
         await bot.process_commands(message)
 
 # --- Task: Automated Weekly Leaderboard Post ---
-@tasks.loop(hours=8)
+@tasks.loop(time=time(23, 0))
 async def automated_leaderboard_poster():
     automated_leaderboard_channel_id_str = os.getenv("AUTOMATED_LEADERBOARD_CHANNEL_ID")
     if not automated_leaderboard_channel_id_str:
