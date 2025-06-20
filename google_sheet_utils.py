@@ -177,7 +177,14 @@ def get_weekly_leaderboard_data(sheet):
                 except ValueError:
                     print(f"DEBUG_GSU_WARNING: Could not convert premium '{premium_str}' to float for {first_name}. Using 0.0. Record: {sale_record}")
                     premium_value = 0.0
-                leaderboard[str(first_name)] = leaderboard.get(str(first_name), 0.0) + premium_value
+                
+                salesperson_name = str(first_name)
+                if salesperson_name not in leaderboard:
+                    leaderboard[salesperson_name] = {"premium": 0.0, "apps": 0}
+                
+                leaderboard[salesperson_name]["premium"] += premium_value
+                leaderboard[salesperson_name]["apps"] += 1
+
             else:
                 print(f"DEBUG_GSU_DETAIL: Row {i+1}: Sale from {first_name} on {sale_date.strftime('%Y-%m-%d')} is NOT in current week (Start: {start_of_week}, End: {end_of_week}, Sale Date: {sale_date}).")
 
@@ -194,6 +201,6 @@ def get_weekly_leaderboard_data(sheet):
     elif not leaderboard:
          print("DEBUG_GSU_INFO: Leaderboard dictionary is empty after processing all sales (either no sales at all or none qualified).")
 
-
-    sorted_leaderboard = dict(sorted(leaderboard.items(), key=lambda item: item[1], reverse=True))
+    # Sort leaderboard by premium amount
+    sorted_leaderboard = dict(sorted(leaderboard.items(), key=lambda item: item[1]['premium'], reverse=True))
     return sorted_leaderboard

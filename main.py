@@ -79,10 +79,13 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
         embed.set_footer(text=f"Total Production: ${team_total:,.2f}\nLast updated: {dt.now().strftime('%Y-%m-%d %I:%M %p %Z')}")
 
         position = 1
-        for name, total_premium in leaderboard_data.items():
+        for name, data in leaderboard_data.items():
             if position > 10:
                 break
             
+            total_premium = data['premium']
+            num_apps = data['apps']
+
             if position == 1:
                 prefix = "🥇"
             elif position == 2:
@@ -92,8 +95,11 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
             else:
                 prefix = f"#{position}."
 
+
+            apps_text = "App" if num_apps == 1 else "Apps"
+
             formatted_premium = f"${total_premium:,.2f}" if isinstance(total_premium, (int, float)) else str(total_premium)
-            embed.add_field(name=f"{prefix} {name}", value=f"Total Premium: **{formatted_premium}**", inline=False)
+            embed.add_field(name=f"{prefix} {name}", value=f"Total Premium: **{formatted_premium}** | **{num_apps}** {apps_text}", inline=False)
             position += 1
 
         if not embed.fields:
