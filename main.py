@@ -67,9 +67,7 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
         start_of_week = today - timedelta(days=today.weekday())
         end_of_week = start_of_week + timedelta(days=6)
 
-        team_total = sum(
-            v for v in leaderboard_data.values() if isinstance(v, (int, float))
-        )
+        team_total = sum(data['premium'] for data in leaderboard_data.values())
 
         embed = discord.Embed(
             title="🏆 Weekly Sales Leaderboard 🏆",
