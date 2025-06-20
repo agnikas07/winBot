@@ -8,6 +8,7 @@ import asyncio
 import os
 import traceback
 from zoneinfo import ZoneInfo
+import pytz
 
 load_dotenv()
 
@@ -67,7 +68,8 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
         start_of_week = today - timedelta(days=today.weekday())
         end_of_week = start_of_week + timedelta(days=6)
 
-        now_est = dt.now(ZoneInfo("America/New_York"))
+        now_utc = dt.now(tz=ZoneInfo("UTC"))
+        now_est = now_utc.astimezone(ZoneInfo("America/New_York"))
 
         team_total = sum(data['premium'] for data in leaderboard_data.values())
 
