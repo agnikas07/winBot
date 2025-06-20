@@ -1,4 +1,3 @@
-# main.py
 from datetime import datetime as dt, time, timedelta
 import discord
 from discord.ext import commands, tasks
@@ -8,6 +7,7 @@ import google_sheet_utils as gsu
 import asyncio
 import os
 import traceback
+from zoneinfo import ZoneInfo
 
 load_dotenv()
 
@@ -67,6 +67,8 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
         start_of_week = today - timedelta(days=today.weekday())
         end_of_week = start_of_week + timedelta(days=6)
 
+        now_est = dt.now(ZoneInfo("America/New_York"))
+
         team_total = sum(data['premium'] for data in leaderboard_data.values())
 
         embed = discord.Embed(
@@ -74,7 +76,7 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
             description=f"Sales from {start_of_week.strftime('%b %d, %Y')} to {end_of_week.strftime('%b %d, %Y')}",
             color=discord.Color.gold()
         )
-        embed.set_footer(text=f"Total Production: ${team_total:,.2f}\nLast updated: {dt.now().strftime('%Y-%m-%d %I:%M %p %Z')}")
+        embed.set_footer(text=f"Total Production: ${team_total:,.2f}\nLast updated: {now_est.strftime('%Y-%m-%d %I:%M %p %Z')}")
 
         position = 1
         for name, data in leaderboard_data.items():
