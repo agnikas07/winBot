@@ -91,7 +91,10 @@ def get_all_sales_data(sheet):
         return []
 
 def get_weekly_leaderboard_data(sheet):
-    """Fetches and processes sales data for the current week's leaderboard."""
+    """
+    Fetches and processes sales data for the current week's leaderboard.
+    Fills remaining slots with salespeople who have had activity in the last two weeks.
+    """
     timestamp_column = os.getenv("TIMESTAMP_COLUMN")
     first_name_column = os.getenv("FIRST_NAME_COLUMN")
     premium_column = os.getenv("PREMIUM_COLUMN")
@@ -106,101 +109,80 @@ def get_weekly_leaderboard_data(sheet):
         return {}
 
     leaderboard = {}
+    recently_active_names = set()
+
     today = datetime.now()
     start_of_week = today - timedelta(days=today.weekday())
     start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
     
-    print(f"DEBUG_GSU: Calculating leaderboard for week: {start_of_week.strftime('%Y-%m-%d %H:%M:%S')} to {end_of_week.strftime('%Y-%m-%d %H:%M:%S')}")
+    two_weeks_ago = today - timedelta(days=14)
 
-    sales_in_week_count = 0
+    print(f"DEBUG_GSU: Calculating leaderboard for week: {start_of_week.strftime('%Y-%m-%d')} to {end_of_week.strftime('%Y-%m-%d')}")
+    print(f"DEBUG_GSU: Checking for recent activity since: {two_weeks_ago.strftime('%Y-%m-%d')}")
+
     for i, sale_record in enumerate(all_sales):
         sale_date = None
         try:
             timestamp_value = sale_record.get(timestamp_column)
-            print(f"DEBUG_GSU_DETAIL: Row {i+1}: Raw timestamp_value from sheet for column '{timestamp_column}': '{timestamp_value}', Type: {type(timestamp_value)}")
-            
             first_name = sale_record.get(first_name_column)
-            
-            premium_raw = sale_record.get(premium_column)
-            if isinstance(premium_raw, (int, float)):
-                premium_str = str(premium_raw)
-            elif isinstance(premium_raw, str):
-                premium_str = premium_raw.replace('$', '').replace(',', '')
-            else: 
-                premium_str = "0"
+            premium_raw = sale_record.get(premium_column, "0")
 
-            if timestamp_value is None or timestamp_value == '':
-                print(f"DEBUG_GSU_DETAIL: Row {i+1} skipped - timestamp_value is None or empty for column '{timestamp_column}'. Record: {sale_record}")
-                continue
-            if not first_name:
+            if not timestamp_value or not first_name:
                 continue
 
             ts_to_parse = str(timestamp_value).strip()
-            print(f"DEBUG_GSU_DETAIL: Row {i+1}: Attempting to parse ts_to_parse: '{ts_to_parse}' (original type: {type(timestamp_value)})")
-
             common_formats = [
-                '%Y-%m-%d %H:%M:%S',
-                '%Y-%m-%dT%H:%M:%S%z', 
-                '%m/%d/%Y %I:%M:%S %p', 
-                '%m/%d/%Y %H:%M',       
-                '%Y-%m-%d',             
-                '%m/%d/%Y'              
+                '%Y-%m-%d %H:%M:%S', '%m/%d/%Y %I:%M:%S %p', '%m/%d/%Y %H:%M', 
+                '%Y-%m-%d', '%m/%d/%Y'
             ]
-            
-            if '+' in ts_to_parse and not any('%z' in fmt for fmt in common_formats if fmt == '%Y-%m-%dT%H:%M:%S%z'):
-                 ts_to_parse_cleaned = ts_to_parse.split('+')[0].strip()
-            elif ts_to_parse.upper().endswith('Z') and not any('%z' in fmt for fmt in common_formats if fmt == '%Y-%m-%dT%H:%M:%S%z'):
-                 ts_to_parse_cleaned = ts_to_parse[:-1].strip()
-            else:
-                 ts_to_parse_cleaned = ts_to_parse
-
             for fmt in common_formats:
                 try:
-                    sale_date = datetime.strptime(ts_to_parse_cleaned, fmt)
-                    print(f"DEBUG_GSU_DETAIL: Row {i+1}: SUCCESS - Parsed '{ts_to_parse_cleaned}' with format '{fmt}' -> {sale_date}")
+                    sale_date = datetime.strptime(ts_to_parse, fmt)
                     break 
                 except ValueError:
-                    print(f"DEBUG_GSU_DETAIL: Row {i+1}: FAILED - Parsing '{ts_to_parse_cleaned}' with format '{fmt}'")
                     continue
             
             if sale_date is None:
-                print(f"DEBUG_GSU_WARNING: Row {i+1}: COULD NOT PARSE timestamp. Original value: '{timestamp_value}', String for parsing: '{ts_to_parse_cleaned}'. Raw record: {sale_record}. Skipping.")
+                print(f"DEBUG_GSU_WARNING: Row {i+1}: COULD NOT PARSE timestamp '{ts_to_parse}'. Skipping.")
                 continue
 
-            print(f"DEBUG_GSU_DETAIL: Row {i+1}: Comparing sale_date: {sale_date} (Type: {type(sale_date)}) with start_of_week: {start_of_week} and end_of_week: {end_of_week}")
+            salesperson_name = str(first_name)
+
+            if sale_date >= two_weeks_ago:
+                recently_active_names.add(salesperson_name)
+
             if start_of_week <= sale_date <= end_of_week:
-                sales_in_week_count += 1
-                print(f"DEBUG_GSU_DETAIL: Row {i+1}: Sale from {first_name} on {sale_date.strftime('%Y-%m-%d')} IS IN CURRENT WEEK.")
+                premium_str = str(premium_raw).replace('$', '').replace(',', '')
                 try:
                     premium_value = float(premium_str) if premium_str else 0.0
                 except ValueError:
-                    print(f"DEBUG_GSU_WARNING: Could not convert premium '{premium_str}' to float for {first_name}. Using 0.0. Record: {sale_record}")
+                    print(f"DEBUG_GSU_WARNING: Could not convert premium '{premium_str}' to float for {salesperson_name}. Using 0.0.")
                     premium_value = 0.0
                 
-                salesperson_name = str(first_name)
                 if salesperson_name not in leaderboard:
                     leaderboard[salesperson_name] = {"premium": 0.0, "apps": 0}
                 
                 leaderboard[salesperson_name]["premium"] += premium_value
                 leaderboard[salesperson_name]["apps"] += 1
 
-            else:
-                print(f"DEBUG_GSU_DETAIL: Row {i+1}: Sale from {first_name} on {sale_date.strftime('%Y-%m-%d')} is NOT in current week (Start: {start_of_week}, End: {end_of_week}, Sale Date: {sale_date}).")
-
         except Exception as ex:
             print(f"DEBUG_GSU_ERROR: Unexpected error processing sale record #{i+1}: {ex}")
-            print(f"Problematic sale_record: {sale_record}")
             traceback.print_exc()
-            
-    print(f"DEBUG_GSU: Processed {len(all_sales)} sales. Found {sales_in_week_count} sales in the current week.")
-    print(f"DEBUG_GSU: Final leaderboard data before sorting: {leaderboard}")
-    
-    if not leaderboard and len(all_sales) > 0 and sales_in_week_count == 0 :
-        print("DEBUG_GSU_INFO: Leaderboard is empty because no sales from the sheet fell into the current week's date range after parsing.")
-    elif not leaderboard:
-         print("DEBUG_GSU_INFO: Leaderboard dictionary is empty after processing all sales (either no sales at all or none qualified).")
 
-    # Sort leaderboard by premium amount
+    print(f"DEBUG_GSU: Found {len(leaderboard)} people with sales this week.")
+    print(f"DEBUG_GSU: Found {len(recently_active_names)} people with sales in the last two weeks.")
+    
+    leaderboard_names = set(leaderboard.keys())
+    filler_candidates = [name for name in recently_active_names if name not in leaderboard_names]
+    
+    for name in filler_candidates:
+        if len(leaderboard) >= 10:
+            break
+        leaderboard[name] = {"premium": 0.0, "apps": 0}
+
     sorted_leaderboard = dict(sorted(leaderboard.items(), key=lambda item: item[1]['premium'], reverse=True))
+    sorted_leaderboard = dict(list(sorted_leaderboard.items())[:10])
+    
+    print(f"DEBUG_GSU: Final leaderboard data after filling and sorting: {sorted_leaderboard}")
     return sorted_leaderboard

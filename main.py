@@ -8,7 +8,7 @@ import asyncio
 import os
 import traceback
 from zoneinfo import ZoneInfo
-import pytz
+
 
 load_dotenv()
 
@@ -81,12 +81,17 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
         embed.set_footer(text=f"Total Production: ${team_total:,.2f}\nLast updated: {now_est.strftime('%Y-%m-%d %I:%M %p %Z')}")
 
         position = 1
+
+        custom_dbab_emoji = "<:DBAB:1369689466708557896>"
+        custom_domore_emoji = "<:DOMOREGSD:1387049213686452245>"
+
         for name, data in leaderboard_data.items():
             if position > 10:
                 break
             
             total_premium = data['premium']
             num_apps = data['apps']
+            suffix = ""
 
             if position == 1:
                 prefix = "🥇"
@@ -97,11 +102,23 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
             else:
                 prefix = f"#{position}."
 
+            if total_premium >= 1000 and total_premium < 2500:
+                suffix = custom_dbab_emoji
+            elif total_premium >= 2500 and total_premium < 5000:
+                suffix = custom_domore_emoji
+            elif total_premium >= 5000 and total_premium < 10000:
+                suffix = "🤑"
+            elif total_premium >= 10000:
+                suffix = "🏆"
+            elif total_premium > 0 and total_premium < 1000:
+                suffix = "🤡"
+            elif total_premium == 0:
+                suffix = "💤"
 
             apps_text = "App" if num_apps == 1 else "Apps"
 
             formatted_premium = f"${total_premium:,.2f}" if isinstance(total_premium, (int, float)) else str(total_premium)
-            embed.add_field(name=f"{prefix} {name}", value=f"Total Premium: **{formatted_premium}** | **{num_apps}** {apps_text}", inline=False)
+            embed.add_field(name=f"{prefix} {name} {suffix}", value=f"Total Premium: **{formatted_premium}** | **{num_apps}** {apps_text}", inline=False)
             position += 1
 
         if not embed.fields:
@@ -230,7 +247,7 @@ async def on_message(message):
         await bot.process_commands(message)
 
 # --- Task: Automated Weekly Leaderboard Post ---
-@tasks.loop(time=time(23, 0))
+@tasks.loop(time=time(19, 0, tzinfo=ZoneInfo("America/New_York")))
 async def automated_leaderboard_poster():
     automated_leaderboard_channel_id_str = os.getenv("AUTOMATED_LEADERBOARD_CHANNEL_ID")
     if not automated_leaderboard_channel_id_str:
