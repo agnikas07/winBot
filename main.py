@@ -22,6 +22,27 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 last_known_row_count_g = 1
 initial_check_done = False
 
+
+# -- Helper to check for first sale ---
+def is_first_sale(salesperson_name: str, all_sales_data: list, headers: list, first_name_column: str, current_sale_row_index: int) -> bool:
+    """
+    Checks if this is the first sale for a given salesperson by looking at historical sales data.
+    """
+    name_col_idx = -1
+    try:
+        name_col_idx = headers.index(first_name_column)
+    except ValueError:
+        return False
+
+    for i in range(1, current_sale_row_index):
+        if i < len(all_sales_data):
+            previous_sale_row = all_sales_data[i]
+            if len(previous_sale_row) > name_col_idx:
+                if previous_sale_row[name_col_idx] == salesperson_name:
+                    return False
+    return True
+
+
 # --- Helper to initialize last_known_row_count ---
 async def initialize_row_count():
     global last_known_row_count_g, initial_check_done
@@ -153,9 +174,8 @@ async def on_ready():
 async def check_for_new_sales():
     global last_known_row_count_g, initial_check_done
 
-    custom_alarm_emoji = os.getenv("ALARM_EMOJI_TAG", "<a:AlarmreminderUrgence:1370133606856392816>") 
-    custom_gsd_emoji = os.getenv("GSD_EMOJI_TAG", "<:GSD:1369689499592036364>") 
-
+    custom_alarm_emoji = os.getenv("ALARM_EMOJI_TAG", "<a:AlarmreminderUrgence:1370133606856392816>")
+    custom_gsd_emoji = os.getenv("GSD_EMOJI_TAG", "<:GSD:1369689499592036364>")
 
     if not initial_check_done:
         print("Waiting for initial row count check to complete...")
@@ -167,40 +187,28 @@ async def check_for_new_sales():
         return
 
     try:
-        current_total_rows = len(sheet.get_all_values())
+        all_values_from_sheet = sheet.get_all_values()
+        current_total_rows = len(all_values_from_sheet)
 
         if current_total_rows > last_known_row_count_g:
             print(f"Change detected! Old rows: {last_known_row_count_g}, New rows: {current_total_rows}")
-            all_values_from_sheet = sheet.get_all_values()
             headers = all_values_from_sheet[0] if len(all_values_from_sheet) > 0 else []
-            new_sales_data = []
-
-            for i in range(last_known_row_count_g, current_total_rows):
-                if i < len(all_values_from_sheet):
-                    row_values = all_values_from_sheet[i]
-                    sale_data = {}
-                    for col_idx, header in enumerate(headers):
-                        if col_idx < len(row_values):
-                            sale_data[header] = row_values[col_idx]
-                        else:
-                            sale_data[header] = None
-                    new_sales_data.append(sale_data)
-
+            
             notification_channel_id_str = os.getenv("NOTIFICATION_CHANNEL_ID")
-            first_name_column = os.getenv("FIRST_NAME_COLUMN", "Name") 
-            sale_type_column = os.getenv("SALE_TYPE_COLUMN", "Sale Type")   
-            premium_column = os.getenv("PREMIUM_COLUMN", "Premium") 
+            first_name_column = os.getenv("FIRST_NAME_COLUMN", "Name")
+            sale_type_column = os.getenv("SALE_TYPE_COLUMN", "Sale Type")
+            premium_column = os.getenv("PREMIUM_COLUMN", "Premium")
 
             if not notification_channel_id_str:
                 print("Error: NOTIFICATION_CHANNEL_ID is not set in .env")
-                last_known_row_count_g = current_total_rows 
+                last_known_row_count_g = current_total_rows
                 return
-            
+
             try:
                 notification_channel_id = int(notification_channel_id_str)
             except ValueError:
                 print(f"Error: NOTIFICATION_CHANNEL_ID '{notification_channel_id_str}' is not a valid integer.")
-                last_known_row_count_g = current_total_rows 
+                last_known_row_count_g = current_total_rows
                 return
 
             notification_channel = bot.get_channel(notification_channel_id)
@@ -209,19 +217,34 @@ async def check_for_new_sales():
                 last_known_row_count_g = current_total_rows
                 return
 
-            for sale in new_sales_data:
-                first_name = sale.get(first_name_column, "N/A")
-                sale_type = sale.get(sale_type_column, "N/A")
-                premium = sale.get(premium_column, "N/A")
+            for i in range(last_known_row_count_g, current_total_rows):
+                if i < len(all_values_from_sheet):
+                    row_values = all_values_from_sheet[i]
+                    sale_data = {header: row_values[col_idx] if col_idx < len(row_values) else None for col_idx, header in enumerate(headers)}
 
-                if first_name != "N/A":
-                    message = f"{custom_alarm_emoji} **New Sale!** {custom_alarm_emoji}\n\n{first_name} just made a sale!\n**Sale Type:** {sale_type}\n**Annual Premium:** ${premium}\n\n{custom_gsd_emoji}"
-                    await notification_channel.send(message)
-                else:
-                    print(f"Skipping notification for incomplete sale data: {sale}")
+                    first_name = sale_data.get(first_name_column, "N/A")
+                    sale_type = sale_data.get(sale_type_column, "N/A")
+                    premium = sale_data.get(premium_column, "N/A")
+
+                    if first_name != "N/A":
+                        if is_first_sale(first_name, all_values_from_sheet, headers, first_name_column, i):
+                            message = (f"🎉🎉{custom_alarm_emoji} **First Sale Alert!** {custom_alarm_emoji}🎉🎉\n\n"
+                                       f"Congratulations to **{first_name}** on making their very first sale!\n"
+                                       f"**Sale Type:** {sale_type}\n"
+                                       f"**Annual Premium:** ${premium}\n\n"
+                                       f"Welcome to the scoreboard! {custom_gsd_emoji}")
+                        else:
+                            message = (f"{custom_alarm_emoji} **New Sale!** {custom_alarm_emoji}\n\n"
+                                       f"{first_name} just made a sale!\n"
+                                       f"**Sale Type:** {sale_type}\n"
+                                       f"**Annual Premium:** ${premium}\n\n"
+                                       f"{custom_gsd_emoji}")
+                        
+                        await notification_channel.send(message)
+                    else:
+                        print(f"Skipping notification for incomplete sale data: {sale_data}")
 
             last_known_row_count_g = current_total_rows
-
 
     except gspread.exceptions.APIError as e:
         print(f"Google Sheets API error during polling: {e}")
