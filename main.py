@@ -107,7 +107,7 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
         custom_domore_emoji = "<:DOMOREGSD:1387049213686452245>"
 
         for name, data in leaderboard_data.items():
-            if position > 10:
+            if position > 15:
                 break
             
             total_premium = data['premium']

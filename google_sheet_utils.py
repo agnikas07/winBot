@@ -177,12 +177,12 @@ def get_weekly_leaderboard_data(sheet):
     filler_candidates = [name for name in recently_active_names if name not in leaderboard_names]
     
     for name in filler_candidates:
-        if len(leaderboard) >= 10:
+        if len(leaderboard) > 15:
             break
         leaderboard[name] = {"premium": 0.0, "apps": 0}
 
     sorted_leaderboard = dict(sorted(leaderboard.items(), key=lambda item: item[1]['premium'], reverse=True))
-    sorted_leaderboard = dict(list(sorted_leaderboard.items())[:10])
+    sorted_leaderboard = dict(list(sorted_leaderboard.items())[:15])
     
     print(f"DEBUG_GSU: Final leaderboard data after filling and sorting: {sorted_leaderboard}")
     return sorted_leaderboard
