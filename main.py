@@ -198,6 +198,7 @@ async def check_for_new_sales():
             first_name_column = os.getenv("FIRST_NAME_COLUMN", "Name")
             sale_type_column = os.getenv("SALE_TYPE_COLUMN", "Sale Type")
             premium_column = os.getenv("PREMIUM_COLUMN", "Premium")
+            appointments_left_column = os.getenv("APPOINTMENTS_LEFT_COLUMN", "Appointments Left")
 
             if not notification_channel_id_str:
                 print("Error: NOTIFICATION_CHANNEL_ID is not set in .env")
@@ -225,19 +226,22 @@ async def check_for_new_sales():
                     first_name = sale_data.get(first_name_column, "N/A")
                     sale_type = sale_data.get(sale_type_column, "N/A")
                     premium = sale_data.get(premium_column, "N/A")
+                    appointments_left = sale_data.get(appointments_left_column, "N/A")
 
                     if first_name != "N/A":
                         if is_first_sale(first_name, all_values_from_sheet, headers, first_name_column, i):
                             message = (f"🎉🎉{custom_alarm_emoji} **First Sale Alert!** {custom_alarm_emoji}🎉🎉\n\n"
                                        f"Congratulations to **{first_name}** on making their very first sale!\n"
                                        f"**Sale Type:** {sale_type}\n"
-                                       f"**Annual Premium:** ${premium}\n\n"
+                                       f"**Annual Premium:** ${premium}\n"
+                                       f"**Appointments Left ➔** {appointments_left}\n\n"
                                        f"Welcome to the scoreboard! {custom_gsd_emoji}")
                         else:
                             message = (f"{custom_alarm_emoji} **New Sale!** {custom_alarm_emoji}\n\n"
                                        f"{first_name} just made a sale!\n"
                                        f"**Sale Type:** {sale_type}\n"
-                                       f"**Annual Premium:** ${premium}\n\n"
+                                       f"**Annual Premium:** ${premium}\n"
+                                       f"**Appointments Left ➔** {appointments_left}\n\n"
                                        f"{custom_gsd_emoji}")
                         
                         await notification_channel.send(message)
