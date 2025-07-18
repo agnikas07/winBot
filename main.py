@@ -101,15 +101,29 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
         )
         embed.set_footer(text=f"Total Production: ${team_total:,.2f}\nLast updated: {now_est.strftime('%Y-%m-%d %I:%M %p %Z')}")
 
+        ten_k_club =[]
+        five_k_club = []
+        main_board = []
+        zero_board = []
+
+        for name, data in leaderboard_data.items():
+            premium = data["premium"]
+            if premium >= 10000:
+                ten_k_club.append((name, data))
+            elif premium >= 5000:
+                five_k_club.append((name, data))
+            elif premium > 0:
+                main_board.append((name, data))
+            else:
+                zero_board.append((name, data))
+
         position = 1
+        total_people_added = 0
 
         custom_dbab_emoji = "<:DBAB:1369689466708557896>"
         custom_domore_emoji = "<:DOMOREGSD:1387049213686452245>"
 
-        for name, data in leaderboard_data.items():
-            if position > 15:
-                break
-            
+        def add_person_to_embed(name, data, rank):
             total_premium = data['premium']
             num_apps = data['apps']
             suffix = ""
@@ -121,26 +135,62 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
             elif position == 3:
                 prefix = "🥉"
             else:
-                prefix = f"#{position}."
+                prefix = f"#{rank}"
 
-            if total_premium >= 1000 and total_premium < 2500:
-                suffix = custom_dbab_emoji
-            elif total_premium >= 2500 and total_premium < 5000:
-                suffix = custom_domore_emoji
-            elif total_premium >= 5000 and total_premium < 10000:
-                suffix = "🤑"
-            elif total_premium >= 10000:
+            if total_premium >= 10000:
                 suffix = "🏆"
-            elif total_premium > 0 and total_premium < 1000:
+            elif total_premium >= 5000:
+                suffix = "🤑"
+            elif total_premium >= 2500:
+                suffix = custom_domore_emoji
+            elif total_premium >= 1000:
+                suffix = custom_dbab_emoji
+            elif total_premium > 0:
                 suffix = "🤡"
-            elif total_premium == 0:
+            else:
                 suffix = "💤"
 
             apps_text = "App" if num_apps == 1 else "Apps"
-
             formatted_premium = f"${total_premium:,.2f}" if isinstance(total_premium, (int, float)) else str(total_premium)
             embed.add_field(name=f"{prefix} {name} {suffix}", value=f"Total Premium: **{formatted_premium}** | **{num_apps}** {apps_text}", inline=False)
-            position += 1
+
+        if ten_k_club:
+            embed.add_field(name="\n--- 👑 10K CLUB 👑 ---", value="", inline=False)
+            for name, data in ten_k_club:
+                if total_people_added >= 15:
+                    break
+                add_person_to_embed(name, data, position)
+                position += 1
+                total_people_added += 1
+
+        if five_k_club and total_people_added <15:
+            embed.add_field(name="\n--- ⭐ 5K CLUB ⭐ ---", value="", inline=False)
+            for name, data in five_k_club:
+                if total_people_added >= 15:
+                    break
+                add_person_to_embed(name, data, position)
+                position += 1
+                total_people_added += 1
+
+        if main_board and total_people_added < 15:
+            if ten_k_club or five_k_club:
+                embed.add_field(name=f"\n--- {custom_dbab_emoji} DBAB {custom_dbab_emoji} ---", value="", inline=False)
+            for name, data in main_board:
+                if total_people_added >= 15:
+                    break
+                add_person_to_embed(name, data, position)
+                position += 1
+                total_people_added += 1
+
+        if zero_board and total_people_added < 15:
+            if ten_k_club or five_k_club or main_board:
+                embed.add_field(name="\n--- 😴 SLACKERS 😴 ---", value="", inline=False)
+            for name, data in zero_board:
+                if total_people_added >= 15:
+                    break
+                add_person_to_embed(name, data, position)
+                position += 1
+                total_people_added += 1
 
         if not embed.fields:
             await destination.send("No sales data found for the current week to display on the leaderboard.")
