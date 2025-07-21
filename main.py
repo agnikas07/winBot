@@ -356,11 +356,52 @@ async def automated_leaderboard_poster():
     else:
         print(f"Error: Automated leaderboard channel ID {automated_leaderboard_channel_id} not found or bot cannot access it.")
 
+
+@tasks.loop(time=time(13,30, tzinfo=ZoneInfo("America/New_York")))
+async def post_tuesday_motivation_gif():
+    if dt.now(tz=ZoneInfo("America/New_York")).weekday() != 1:
+        return
+    
+    sheet = gsu.get_sheet()
+    if not sheet:
+        print("Sheet not available for Tuesday GIF check.")
+
+    leaderboard_data = gsu.get_weekly_leaderboard_data(sheet)
+
+    if not leaderboard_data:
+        gif_url = os.getenv("TUESDAY_NOON_GIF_URL")
+        channel_id_str = os.getenv("NOTIFICATION_CHANNEL_ID")
+
+        if not gif_url or not channel_id_str:
+            print("Error: TUESDAY_NOON_GIF_URL or NOTIFICATION_CHANNEL_ID is not set in .env")
+            return
+        
+        try:
+            channel_id = int(channel_id_str)
+        except ValueError:
+            print(f"Error: NOTIFICATION_CHANNEL_ID '{channel_id_str}' is not a valid integer.")
+            return
+        
+        channel = bot.get_channel(channel_id)
+        if channel:
+            print("No sales by Tuesday noon, posting motivation GIF.")
+            await channel.send(gif_url)
+        else:
+            print(f"Error: Notification channel ID {channel_id} not found or bot cannot access it.")
+
+@post_tuesday_motivation_gif.before_loop
+async def before_post_tuesday_motivation_gif():
+    print('Waiting for bot to be ready before posting Tuesday motivation GIF...')
+    await bot.wait_until_ready()
+    print('Bot is ready, starting Tuesday motivation GIF poster.')
+
+
 @automated_leaderboard_poster.before_loop
 async def before_automated_leaderboard_poster():
     print('Waiting for bot to be ready before starting automated leaderboard poster...')
     await bot.wait_until_ready()
     print('Bot is ready, starting automated leaderboard poster.')
+
 
 if __name__ == "__main__":
     discord_bot_token = os.getenv("DISCORD_BOT_TOKEN")
