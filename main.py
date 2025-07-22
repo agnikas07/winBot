@@ -298,7 +298,7 @@ async def check_for_new_sales():
                                        f"**Lead Type:** {lead_type}\n"
                                        f"**Lead Age:** {lead_age}\n"
                                        f"**Appointments Left ➔** {appointments_left}\n"
-                                       f"**Week to Date Sales:** {wtd_premium:,.2f}\n\n"
+                                       f"**Week to Date Sales:** ${wtd_premium:,.2f}\n\n"
                                        f"Welcome to the scoreboard! {custom_gsd_emoji}")
                         else:
                             message = (f"{custom_alarm_emoji} **New Sale!** {custom_alarm_emoji}\n\n"
@@ -309,7 +309,7 @@ async def check_for_new_sales():
                                        f"**Lead Type:** {lead_type}\n"
                                        f"**Lead Age:** {lead_age}\n"
                                        f"**Appointments Left ➔** {appointments_left}\n"
-                                       f"**Week to Date Sales:** {wtd_premium:,.2f}\n\n"
+                                       f"**Week to Date Sales:** ${wtd_premium:,.2f}\n\n"
                                        f"{custom_gsd_emoji}")
                         
                         await notification_channel.send(message)
