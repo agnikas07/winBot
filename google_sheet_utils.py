@@ -1,4 +1,4 @@
-import gspread
+import gspread_asyncio
 from google.oauth2.service_account import Credentials
 import os
 from datetime import datetime, timedelta
@@ -6,17 +6,22 @@ import traceback
 
 SCOPE = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file']
 
-def get_sheet():
-    """Authenticates with Google Sheets and returns the specific worksheet."""
+def get_creds():
+    """Gets the Google credentials from the service account file."""
+    google_service_account_file = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE')
+    if not google_service_account_file:
+        print("DEBUG_GSU_ERROR: GOOGLE_SERVICE_ACCOUNT_FILE not set in .env")
+        return None
+    
+    return Credentials.from_service_account_file(google_service_account_file, scopes=SCOPE)
+
+async def get_sheet():
+    """Asynchronously authenticates with Google Sheets and returns the specific worksheet."""
     try:
-        google_service_account_file = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE')
         google_sheet_name = os.getenv('GOOGLE_SHEET_NAME')
         google_sheet_id = os.getenv('GOOGLE_SPREADSHEET_ID')
         google_sheet_worksheet_name = os.getenv('GOOGLE_SHEET_WORKSHEET_NAME')
 
-        if not google_service_account_file:
-            print("DEBUG_GSU_ERROR: GOOGLE_SERVICE_ACCOUNT_FILE not set in .env")
-            return None
         if not google_sheet_worksheet_name:
             print(f"DEBUG_GSU_ERROR: GOOGLE_SHEET_WORKSHEET_NAME ('{google_sheet_worksheet_name}') not set in .env or is invalid.")
             return None
@@ -24,16 +29,16 @@ def get_sheet():
             print("DEBUG_GSU_ERROR: Neither GOOGLE_SPREADSHEET_ID nor GOOGLE_SHEET_NAME is set in .env")
             return None
 
-        creds = Credentials.from_service_account_file(google_service_account_file, scopes=SCOPE)
-        client = gspread.authorize(creds)
+        agcm = gspread_asyncio.AsyncioGspreadClientManager(get_creds)
+        client = await agcm.authorize()
 
         spreadsheet = None
         if google_sheet_id:
             try:
                 print(f"DEBUG_GSU: Attempting to open spreadsheet by ID: {google_sheet_id}")
-                spreadsheet = client.open_by_key(google_sheet_id)
+                spreadsheet = await client.open_by_key(google_sheet_id)
                 print(f"DEBUG_GSU: Successfully opened spreadsheet by ID. Title: '{spreadsheet.title}'")
-            except gspread.exceptions.APIError as e:
+            except gspread_asyncio.gspread.exceptions.APIError as e:
                 print(f"DEBUG_GSU_ERROR: API error opening spreadsheet by ID '{google_sheet_id}': {e}. Falling back to name if available.")
                 if not google_sheet_name:
                     return None
@@ -45,9 +50,9 @@ def get_sheet():
         if not spreadsheet and google_sheet_name:
             try:
                 print(f"DEBUG_GSU: Attempting to open spreadsheet by name: {google_sheet_name}")
-                spreadsheet = client.open(google_sheet_name)
+                spreadsheet = await client.open(google_sheet_name)
                 print(f"DEBUG_GSU: Successfully opened spreadsheet by name. Title: '{spreadsheet.title}'")
-            except gspread.exceptions.SpreadsheetNotFound:
+            except gspread_asyncio.gspread.exceptions.SpreadsheetNotFound:
                 print(f"DEBUG_GSU_ERROR: Spreadsheet named '{google_sheet_name}' not found.")
                 return None
             except Exception as e:
@@ -59,10 +64,10 @@ def get_sheet():
             return None
 
         try:
-            sheet = spreadsheet.worksheet(google_sheet_worksheet_name)
+            sheet = await spreadsheet.worksheet(google_sheet_worksheet_name)
             print(f"DEBUG_GSU: Successfully opened worksheet: '{sheet.title}'")
             return sheet
-        except gspread.exceptions.WorksheetNotFound:
+        except gspread_asyncio.gspread.exceptions.WorksheetNotFound:
             print(f"DEBUG_GSU_ERROR: Worksheet named '{google_sheet_worksheet_name}' not found in spreadsheet '{spreadsheet.title}'.")
             return None
 
@@ -74,13 +79,13 @@ def get_sheet():
         traceback.print_exc()
         return None
 
-def get_all_sales_data(sheet):
+async def get_all_sales_data(sheet):
     """Fetches all records from the sheet using get_all_records for dictionary format."""
     if not sheet:
         print("DEBUG_GSU: get_all_sales_data received no sheet object.")
         return []
     try:
-        records = sheet.get_all_records() 
+        records = await sheet.get_all_records() 
         print(f"DEBUG_GSU: Fetched {len(records)} records using get_all_records().")
         if records:
             print(f"DEBUG_GSU_DETAIL: Example of first record fetched: {records[0]}")
@@ -90,7 +95,7 @@ def get_all_sales_data(sheet):
         traceback.print_exc()
         return []
 
-def get_weekly_leaderboard_data(sheet):
+async def get_weekly_leaderboard_data(sheet):
     """
     Fetches and processes sales data for the current week's leaderboard.
     Fills remaining slots with salespeople who have had activity in the last two weeks.
@@ -103,7 +108,7 @@ def get_weekly_leaderboard_data(sheet):
         print("DEBUG_GSU_ERROR: One or more column names (TIMESTAMP_COLUMN, FIRST_NAME_COLUMN, PREMIUM_COLUMN) not set in .env")
         return {}
 
-    all_sales = get_all_sales_data(sheet)
+    all_sales = await get_all_sales_data(sheet)
     if not all_sales:
         print("DEBUG_GSU: No sales data returned from get_all_sales_data for leaderboard.")
         return {}

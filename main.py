@@ -46,18 +46,25 @@ def is_first_sale(salesperson_name: str, all_sales_data: list, headers: list, fi
 # --- Helper to initialize last_known_row_count ---
 async def initialize_row_count():
     global last_known_row_count_g, initial_check_done
-    sheet = gsu.get_sheet()
+    sheet = await gsu.get_sheet()
     if sheet:
         try:
-            all_values = sheet.get_all_values()
+            all_values = await sheet.get_all_values()
             last_known_row_count_g = len(all_values)
             print(f"Initial row count set to: {last_known_row_count_g}")
+            initial_check_done = True
+        except gspread.exceptions.APIError as e:
+            print(f"Error initializing row count: {e}. Retrying in 60 seconds.")
+            await asyncio.sleep(60)
+            await initialize_row_count() # Retry initialization
         except Exception as e:
-            print(f"Error initializing row count: {e}")
+            print(f"An unexpected error occurred during row count initialization: {e}")
             last_known_row_count_g = 1
+            initial_check_done = False # Do not proceed if there is an unknown error
     else:
-        print("Sheet not available during initial row count check.")
-    initial_check_done = True
+        print("Sheet not available during initial row count check. Retrying in 60 seconds.")
+        await asyncio.sleep(60)
+        await initialize_row_count() # Retry initialization
 
 # --- Reusable Leaderboard Function ---
 async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
@@ -65,7 +72,7 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
     Fetches, formats, and posts the weekly sales leaderboard to the given destination.
     'destination' can be a TextChannel or a commands.Context object.
     """
-    sheet = gsu.get_sheet()
+    sheet = await gsu.get_sheet()
     if not sheet:
         try:
             await destination.send("Sorry, I couldn't connect to the sales data sheet right now for the leaderboard. Please try again later.")
@@ -79,7 +86,7 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
         await destination.send("Generating weekly leaderboard... 📊", delete_after=15)
 
     try:
-        leaderboard_data = gsu.get_weekly_leaderboard_data(sheet)
+        leaderboard_data = await gsu.get_weekly_leaderboard_data(sheet)
 
         if not leaderboard_data:
             await destination.send("No sales recorded yet this week.")
@@ -231,20 +238,20 @@ async def check_for_new_sales():
         print("Waiting for initial row count check to complete...")
         return
 
-    sheet = gsu.get_sheet()
+    sheet = await gsu.get_sheet()
     if not sheet:
         print("Sheet not available for polling new sales.")
         return
 
     try:
-        all_values_from_sheet = sheet.get_all_values()
+        all_values_from_sheet = await sheet.get_all_values()
         current_total_rows = len(all_values_from_sheet)
 
         if current_total_rows > last_known_row_count_g:
             print(f"Change detected! Old rows: {last_known_row_count_g}, New rows: {current_total_rows}")
             headers = all_values_from_sheet[0] if len(all_values_from_sheet) > 0 else []
 
-            leaderboard_data = gsu.get_weekly_leaderboard_data(sheet)
+            leaderboard_data = await gsu.get_weekly_leaderboard_data(sheet)
             
             notification_channel_id_str = os.getenv("NOTIFICATION_CHANNEL_ID")
             first_name_column = os.getenv("FIRST_NAME_COLUMN", "Name")
@@ -368,11 +375,11 @@ async def post_tuesday_motivation_gif():
     if dt.now(tz=ZoneInfo("America/New_York")).weekday() != 1:
         return
     
-    sheet = gsu.get_sheet()
+    sheet = await gsu.get_sheet()
     if not sheet:
         print("Sheet not available for Tuesday GIF check.")
 
-    leaderboard_data = gsu.get_weekly_leaderboard_data(sheet)
+    leaderboard_data = await gsu.get_weekly_leaderboard_data(sheet)
 
     if not leaderboard_data:
         gif_url = os.getenv("TUESDAY_NOON_GIF_URL")
@@ -419,4 +426,3 @@ if __name__ == "__main__":
         print("Error: GOOGLE_SERVICE_ACCOUNT_FILE is not set in .env (needed for Google Sheets connection)")
     else:
         bot.run(discord_bot_token)
-
