@@ -151,6 +151,7 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
         )
         embed.set_footer(text=f"Total Production: ${team_total:,.2f}\nLast updated: {now_est.strftime('%Y-%m-%d %I:%M %p %Z')}")
 
+        twenty_k_club = []
         ten_k_club =[]
         five_k_club = []
         main_board = []
@@ -158,7 +159,9 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
 
         for name, data in leaderboard_data.items():
             premium = data["premium"]
-            if premium >= 10000:
+            if premium >= 20000:
+                twenty_k_club.append((name, data))
+            elif premium >= 10000:
                 ten_k_club.append((name, data))
             elif premium >= 5000:
                 five_k_club.append((name, data))
@@ -187,7 +190,9 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
             else:
                 prefix = f"#{rank}"
 
-            if total_premium >= 10000:
+            if total_premium >= 20000:
+                suffix = "🤯"
+            elif total_premium >= 10000:
                 suffix = "🏆"
             elif total_premium >= 5000:
                 suffix = "🤑"
@@ -203,6 +208,15 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
             apps_text = "App" if num_apps == 1 else "Apps"
             formatted_premium = f"${total_premium:,.2f}" if isinstance(total_premium, (int, float)) else str(total_premium)
             embed.add_field(name=f"{prefix} {name} {suffix}", value=f"Total Premium: **{formatted_premium}** | **{num_apps}** {apps_text}", inline=False)
+
+        if twenty_k_club:
+            embed.add_field(name="\n--- 🚀 20K CLUB 🚀 ---", value="", inline=False)
+            for name, data in twenty_k_club:
+                if total_people_added >= 15:
+                    break
+                add_person_to_embed(name, data, position)
+                position += 1
+                total_people_added += 1
 
         if ten_k_club:
             embed.add_field(name="\n--- 👑 10K CLUB 👑 ---", value="", inline=False)
