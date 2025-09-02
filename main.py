@@ -36,13 +36,22 @@ initial_check_done = False
 class OnboardingModal(ui.Modal, title="Welcome to the JW Discord!"):
     full_name = ui.TextInput(label='Full Name', placeholder='Enter your full name...')
     email = ui.TextInput(label='Email', placeholder='Enter your email address...')
+    biggest_struggle = ui.TextInput(
+        label='What is your biggest struggle?',
+        placeholder='e.g., Recruiting, Leads, Accountability, etc.',
+        style=discord.TextStyle.short
+    )
+    phone = ui.TextInput(label='Phone Number (Optional)', placeholder='Enter your phone number...', required=False)
 
     async def on_submit(self, interaction: discord.Interaction):
         webhook_url = os.getenv("ONBOARDING_WEBHOOK_URL")
         data = {
             "full_name": self.full_name.value,
             "email": self.email.value,
-            "discord_username": interaction.user.name
+            "discord_username": interaction.user.name,
+            "discord_id": interaction.user.id,
+            "biggest_struggle": self.biggest_struggle.value,
+            "phone": self.phone.value
         }
         response = requests.post(webhook_url, json=data)
         if response.status_code == 200:
@@ -398,6 +407,12 @@ async def check_for_new_sales():
 @bot.command(name='leaderboard', help='Displays the weekly sales leaderboard.')
 async def leaderboard_command(ctx): 
     await generate_and_post_leaderboard(ctx)
+
+# -- Command: test_onboarding --
+@bot.command(name='test_onboarding', help='Sends you the onboarding modal via DM.')
+async def test_onboarding(ctx):
+    view = OnboardingView()
+    await ctx.send("Here is a fresh onboarding button to test: ", view=view)
 
 # --- Helper: Get Gemini Response ---
 async def get_gemini_response(prompt):
