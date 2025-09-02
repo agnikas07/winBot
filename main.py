@@ -55,7 +55,7 @@ class OnboardingModal(ui.Modal, title="Welcome to the JW Discord!"):
         }
         response = requests.post(webhook_url, json=data)
         if response.status_code == 200:
-            await interaction.response.send_message('Thanks for submitting your information! I\'m WinBot, John\'s Discord bot. Try saying hello to everybody in the #JW-CHAT channel! I\'ll be here to answer any questions you may have.', ephemeral=True)
+            await interaction.response.send_message('Thanks for submitting your information! I\'m WinBot, John\'s Discord bot. Try saying hello to everybody in the <#1369512648194134023> channel! I\'ll be here to answer any questions you may have.', ephemeral=True)
         else:
             await interaction.response.send_message('There was an error submitting your information. Please try again later.', ephemeral=True)
 
