@@ -187,7 +187,7 @@ async def get_weekly_leaderboard_data(sheet):
         leaderboard[name] = {"premium": 0.0, "apps": 0}
 
     sorted_leaderboard = dict(sorted(leaderboard.items(), key=lambda item: item[1]['premium'], reverse=True))
-    sorted_leaderboard = dict(list(sorted_leaderboard.items())[:15])
+    sorted_leaderboard = dict(list(sorted_leaderboard.items())[:20])
     
     print(f"DEBUG_GSU: Final leaderboard data after filling and sorting: {sorted_leaderboard}")
     return sorted_leaderboard
