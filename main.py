@@ -124,6 +124,8 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
     Fetches, formats, and posts the weekly sales leaderboard to the given destination.
     'destination' can be a TextChannel or a commands.Context object.
     """
+    row_limit = 20
+
     sheet = await gsu.get_sheet()
     if not sheet:
         try:
@@ -218,48 +220,48 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
             formatted_premium = f"${total_premium:,.2f}" if isinstance(total_premium, (int, float)) else str(total_premium)
             embed.add_field(name=f"{prefix} {name} {suffix}", value=f"Total Premium: **{formatted_premium}** | **{num_apps}** {apps_text}", inline=False)
 
-        if twenty_k_club:
+        if twenty_k_club and total_people_added < row_limit:
             embed.add_field(name="\n--- 🚀 20K CLUB 🚀 ---", value="", inline=False)
             for name, data in twenty_k_club:
-                if total_people_added >= 15:
+                if total_people_added >= row_limit:
                     break
                 add_person_to_embed(name, data, position)
                 position += 1
                 total_people_added += 1
 
-        if ten_k_club:
+        if ten_k_club and total_people_added < row_limit:
             embed.add_field(name="\n--- 👑 10K CLUB 👑 ---", value="", inline=False)
             for name, data in ten_k_club:
-                if total_people_added >= 15:
+                if total_people_added >= row_limit:
                     break
                 add_person_to_embed(name, data, position)
                 position += 1
                 total_people_added += 1
 
-        if five_k_club and total_people_added <15:
+        if five_k_club and total_people_added <row_limit:
             embed.add_field(name="\n--- ⭐ 5K CLUB ⭐ ---", value="", inline=False)
             for name, data in five_k_club:
-                if total_people_added >= 15:
+                if total_people_added >= row_limit:
                     break
                 add_person_to_embed(name, data, position)
                 position += 1
                 total_people_added += 1
 
-        if main_board and total_people_added < 15:
+        if main_board and total_people_added < row_limit:
             if ten_k_club or five_k_club:
                 embed.add_field(name=f"\n--- {custom_dbab_emoji} DBAB {custom_dbab_emoji} ---", value="", inline=False)
             for name, data in main_board:
-                if total_people_added >= 15:
+                if total_people_added >= row_limit:
                     break
                 add_person_to_embed(name, data, position)
                 position += 1
                 total_people_added += 1
 
-        if zero_board and total_people_added < 15:
+        if zero_board and total_people_added < row_limit:
             if ten_k_club or five_k_club or main_board:
                 embed.add_field(name="\n--- 😴 SLACKERS 😴 ---", value="", inline=False)
             for name, data in zero_board:
-                if total_people_added >= 15:
+                if total_people_added >= row_limit:
                     break
                 add_person_to_embed(name, data, position)
                 position += 1
