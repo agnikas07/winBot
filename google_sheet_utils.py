@@ -182,7 +182,7 @@ async def get_weekly_leaderboard_data(sheet):
     filler_candidates = [name for name in recently_active_names if name not in leaderboard_names]
     
     for name in filler_candidates:
-        if len(leaderboard) > 15:
+        if len(leaderboard) > 20:
             break
         leaderboard[name] = {"premium": 0.0, "apps": 0}
 
