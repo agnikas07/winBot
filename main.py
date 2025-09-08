@@ -367,7 +367,7 @@ async def check_for_new_sales():
                     wtd_premium = leaderboard_data.get(first_name, {}).get("premium", 0.0)
 
                     if first_name != "N/A":
-                        field_or_telesale_line = f"**Field/Telesale:** {field_or_telesale}" if field_or_telesale and field_or_telesale != "N/A" else ""
+                        field_or_telesale_line = f"**Field/Telesale:** {field_or_telesale}\n" if field_or_telesale and field_or_telesale != "N/A" else ""
                         if is_first_sale(first_name, all_values_from_sheet, headers, first_name_column, i):
                             message = (f"🎉🎉{custom_alarm_emoji} **First Sale Alert!** {custom_alarm_emoji}🎉🎉\n\n"
                                        f"Congratulations to **{first_name}** on making their very first sale!\n"
