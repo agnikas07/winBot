@@ -376,7 +376,7 @@ async def check_for_new_sales():
                                        f"**Carrier:** {carrier}\n"
                                        f"**Lead Type:** {lead_type}\n"
                                        f"**Lead Age:** {lead_age}\n"
-                                        f"{field_or_telesale_line}\n"
+                                        f"{field_or_telesale_line}"
                                        f"**Appointments Left ➔** {appointments_left}\n"
                                        f"**Week to Date Sales:** ${wtd_premium:,.2f}\n\n"
                                        f"Welcome to the scoreboard! {custom_gsd_emoji}")
@@ -388,7 +388,7 @@ async def check_for_new_sales():
                                        f"**Carrier:** {carrier}\n"
                                        f"**Lead Type:** {lead_type}\n"
                                        f"**Lead Age:** {lead_age}\n"
-                                        f"{field_or_telesale_line}\n"
+                                        f"{field_or_telesale_line}"
                                        f"**Appointments Left ➔** {appointments_left}\n"
                                        f"**Week to Date Sales:** ${wtd_premium:,.2f}\n\n"
                                        f"{custom_gsd_emoji}")
