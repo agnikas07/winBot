@@ -119,7 +119,8 @@ async def get_weekly_leaderboard_data(sheet):
     leaderboard = {}
     recently_active_names = set()
 
-    today = datetime.now()
+    eastern_tz = ZoneInfo("America/New_York")
+    today = datetime.now(eastern_tz)
     print(today)
     start_of_week = today - timedelta(days=today.weekday())
     start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -157,6 +158,8 @@ async def get_weekly_leaderboard_data(sheet):
             if sale_date is None:
                 print(f"DEBUG_GSU_WARNING: Row {i+1}: COULD NOT PARSE timestamp '{ts_to_parse}'. Skipping.")
                 continue
+
+            sale_date = sale_date.replace(tzinfo=eastern_tz)
 
             salesperson_name = str(first_name)
 
