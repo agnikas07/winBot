@@ -119,7 +119,7 @@ async def get_weekly_leaderboard_data(sheet):
     leaderboard = {}
     recently_active_names = set()
 
-    today = datetime.now(ZoneInfo("America/New_York"))
+    today = datetime.now()
     print(today)
     start_of_week = today - timedelta(days=today.weekday())
     start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
