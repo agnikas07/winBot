@@ -2,7 +2,9 @@ import gspread_asyncio
 from google.oauth2.service_account import Credentials
 import os
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import traceback
+
 
 SCOPE = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file']
 
@@ -35,9 +37,10 @@ async def get_sheet():
         spreadsheet = None
         if google_sheet_id:
             try:
-                print(f"DEBUG_GSU: Attempting to open spreadsheet by ID: {google_sheet_id}")
+                # print(f"DEBUG_GSU: Attempting to open spreadsheet by ID: {google_sheet_id}")
                 spreadsheet = await client.open_by_key(google_sheet_id)
-                print(f"DEBUG_GSU: Successfully opened spreadsheet by ID. Title: '{spreadsheet.title}'")
+                # print(f"DEBUG_GSU: Successfully opened spreadsheet by ID. Title: '{spreadsheet.title}'")
+                # commented out print statements to reduce noise in logs
             except gspread_asyncio.gspread.exceptions.APIError as e:
                 print(f"DEBUG_GSU_ERROR: API error opening spreadsheet by ID '{google_sheet_id}': {e}. Falling back to name if available.")
                 if not google_sheet_name:
@@ -116,10 +119,13 @@ async def get_weekly_leaderboard_data(sheet):
     leaderboard = {}
     recently_active_names = set()
 
-    today = datetime.now()
+    today = datetime.now(ZoneInfo("UTC")).astimezone(ZoneInfo("America/New_York"))
+    print(today)
     start_of_week = today - timedelta(days=today.weekday())
     start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+    print(start_of_week)
     end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
+    print(end_of_week)
     
     two_weeks_ago = today - timedelta(days=14)
 
