@@ -98,9 +98,11 @@ async def get_all_sales_data(sheet):
         traceback.print_exc()
         return []
 
-async def get_weekly_leaderboard_data(sheet):
+
+async def get_sales_leaderboard_data(sheet, timeframe='weekly'):
     """
-    Fetches and processes sales data for the current week's leaderboard.
+    Fetches and processes sales data for the specified timeframe's leaderboard.
+    Timeframe can be 'weekly' or 'monthly'.
     Fills remaining slots with salespeople who have had activity in the last two weeks.
     """
     timestamp_column = os.getenv("TIMESTAMP_COLUMN")
@@ -110,27 +112,31 @@ async def get_weekly_leaderboard_data(sheet):
     if not all([timestamp_column, first_name_column, premium_column]):
         print("DEBUG_GSU_ERROR: One or more column names (TIMESTAMP_COLUMN, FIRST_NAME_COLUMN, PREMIUM_COLUMN) not set in .env")
         return {}
-
+    
     all_sales = await get_all_sales_data(sheet)
     if not all_sales:
         print("DEBUG_GSU: No sales data returned from get_all_sales_data for leaderboard.")
         return {}
-
+    
     leaderboard = {}
     recently_active_names = set()
 
     eastern_tz = ZoneInfo("America/New_York")
     today = datetime.now(eastern_tz)
-    print(today)
-    start_of_week = today - timedelta(days=today.weekday())
-    start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
-    print(start_of_week)
-    end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
-    print(end_of_week)
-    
+
+    if timeframe == 'monthly':
+        start_of_period = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_of_period = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+        title_period = "Month"
+    else:
+        start_of_period = today - timedelta(days=today.weekday())
+        start_of_period = start_of_period.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_period = start_of_period + timedelta(days=6, hours=23, minutes=59, seconds=59)
+        title_period = "Week"
+
     two_weeks_ago = today - timedelta(days=14)
 
-    print(f"DEBUG_GSU: Calculating leaderboard for week: {start_of_week.strftime('%Y-%m-%d')} to {end_of_week.strftime('%Y-%m-%d')}")
+    print(f"DEBUG_GSU: Calculating leaderboard for {title_period}: {start_of_period.strftime('%Y-%m-%d')} to {end_of_period.strftime('%Y-%m-%d')}")
     print(f"DEBUG_GSU: Checking for recent activity since: {two_weeks_ago.strftime('%Y-%m-%d')}")
 
     for i, sale_record in enumerate(all_sales):
@@ -138,7 +144,7 @@ async def get_weekly_leaderboard_data(sheet):
         try:
             timestamp_value = sale_record.get(timestamp_column)
             first_name = sale_record.get(first_name_column)
-            premium_raw = sale_record.get(premium_column, "0")
+            premium_raw  = sale_record.get(premium_column, "0")
 
             if not timestamp_value or not first_name:
                 continue
@@ -154,7 +160,7 @@ async def get_weekly_leaderboard_data(sheet):
                     break 
                 except ValueError:
                     continue
-            
+
             if sale_date is None:
                 print(f"DEBUG_GSU_WARNING: Row {i+1}: COULD NOT PARSE timestamp '{ts_to_parse}'. Skipping.")
                 continue
@@ -166,7 +172,7 @@ async def get_weekly_leaderboard_data(sheet):
             if sale_date >= two_weeks_ago:
                 recently_active_names.add(salesperson_name)
 
-            if start_of_week <= sale_date <= end_of_week:
+            if start_of_period <= sale_date <= end_of_period:
                 premium_str = str(premium_raw).replace('$', '').replace(',', '')
                 try:
                     premium_value = float(premium_str) if premium_str else 0.0
@@ -183,20 +189,124 @@ async def get_weekly_leaderboard_data(sheet):
         except Exception as ex:
             print(f"DEBUG_GSU_ERROR: Unexpected error processing sale record #{i+1}: {ex}")
             traceback.print_exc()
-
-    print(f"DEBUG_GSU: Found {len(leaderboard)} people with sales this week.")
-    print(f"DEBUG_GSU: Found {len(recently_active_names)} people with sales in the last two weeks.")
     
+    print(f"DEBUG_GSU: Found {len(leaderboard)} people with sales this {title_period.lower()}.")
+    print(f"DEBUG_GSU: Found {len(recently_active_names)} people with sales in the last two weeks.")
+
     leaderboard_names = set(leaderboard.keys())
     filler_candidates = [name for name in recently_active_names if name not in leaderboard_names]
-    
+
     for name in filler_candidates:
-        if len(leaderboard) > 20:
+        if len(leaderboard) >= 20:
             break
         leaderboard[name] = {"premium": 0.0, "apps": 0}
 
     sorted_leaderboard = dict(sorted(leaderboard.items(), key=lambda item: item[1]['premium'], reverse=True))
     sorted_leaderboard = dict(list(sorted_leaderboard.items())[:20])
-    
-    print(f"DEBUG_GSU: Final leaderboard data after filling and sorting: {sorted_leaderboard}")
+
+    print(f"DEBUG_GSU: Final {title_period} leaderboard data after filling and sorting: {sorted_leaderboard}")
     return sorted_leaderboard
+
+
+# async def get_weekly_leaderboard_data(sheet):
+#     """
+#     Fetches and processes sales data for the current week's leaderboard.
+#     Fills remaining slots with salespeople who have had activity in the last two weeks.
+#     """
+#     timestamp_column = os.getenv("TIMESTAMP_COLUMN")
+#     first_name_column = os.getenv("FIRST_NAME_COLUMN")
+#     premium_column = os.getenv("PREMIUM_COLUMN")
+
+#     if not all([timestamp_column, first_name_column, premium_column]):
+#         print("DEBUG_GSU_ERROR: One or more column names (TIMESTAMP_COLUMN, FIRST_NAME_COLUMN, PREMIUM_COLUMN) not set in .env")
+#         return {}
+
+#     all_sales = await get_all_sales_data(sheet)
+#     if not all_sales:
+#         print("DEBUG_GSU: No sales data returned from get_all_sales_data for leaderboard.")
+#         return {}
+
+#     leaderboard = {}
+#     recently_active_names = set()
+
+#     eastern_tz = ZoneInfo("America/New_York")
+#     today = datetime.now(eastern_tz)
+#     print(today)
+#     start_of_week = today - timedelta(days=today.weekday())
+#     start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+#     print(start_of_week)
+#     end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
+#     print(end_of_week)
+    
+#     two_weeks_ago = today - timedelta(days=14)
+
+#     print(f"DEBUG_GSU: Calculating leaderboard for week: {start_of_week.strftime('%Y-%m-%d')} to {end_of_week.strftime('%Y-%m-%d')}")
+#     print(f"DEBUG_GSU: Checking for recent activity since: {two_weeks_ago.strftime('%Y-%m-%d')}")
+
+#     for i, sale_record in enumerate(all_sales):
+#         sale_date = None
+#         try:
+#             timestamp_value = sale_record.get(timestamp_column)
+#             first_name = sale_record.get(first_name_column)
+#             premium_raw = sale_record.get(premium_column, "0")
+
+#             if not timestamp_value or not first_name:
+#                 continue
+
+#             ts_to_parse = str(timestamp_value).strip()
+#             common_formats = [
+#                 '%Y-%m-%d %H:%M:%S', '%m/%d/%Y %I:%M:%S %p', '%m/%d/%Y %H:%M', 
+#                 '%Y-%m-%d', '%m/%d/%Y'
+#             ]
+#             for fmt in common_formats:
+#                 try:
+#                     sale_date = datetime.strptime(ts_to_parse, fmt)
+#                     break 
+#                 except ValueError:
+#                     continue
+            
+#             if sale_date is None:
+#                 print(f"DEBUG_GSU_WARNING: Row {i+1}: COULD NOT PARSE timestamp '{ts_to_parse}'. Skipping.")
+#                 continue
+
+#             sale_date = sale_date.replace(tzinfo=eastern_tz)
+
+#             salesperson_name = str(first_name)
+
+#             if sale_date >= two_weeks_ago:
+#                 recently_active_names.add(salesperson_name)
+
+#             if start_of_week <= sale_date <= end_of_week:
+#                 premium_str = str(premium_raw).replace('$', '').replace(',', '')
+#                 try:
+#                     premium_value = float(premium_str) if premium_str else 0.0
+#                 except ValueError:
+#                     print(f"DEBUG_GSU_WARNING: Could not convert premium '{premium_str}' to float for {salesperson_name}. Using 0.0.")
+#                     premium_value = 0.0
+                
+#                 if salesperson_name not in leaderboard:
+#                     leaderboard[salesperson_name] = {"premium": 0.0, "apps": 0}
+                
+#                 leaderboard[salesperson_name]["premium"] += premium_value
+#                 leaderboard[salesperson_name]["apps"] += 1
+
+#         except Exception as ex:
+#             print(f"DEBUG_GSU_ERROR: Unexpected error processing sale record #{i+1}: {ex}")
+#             traceback.print_exc()
+
+#     print(f"DEBUG_GSU: Found {len(leaderboard)} people with sales this week.")
+#     print(f"DEBUG_GSU: Found {len(recently_active_names)} people with sales in the last two weeks.")
+    
+#     leaderboard_names = set(leaderboard.keys())
+#     filler_candidates = [name for name in recently_active_names if name not in leaderboard_names]
+    
+#     for name in filler_candidates:
+#         if len(leaderboard) > 20:
+#             break
+#         leaderboard[name] = {"premium": 0.0, "apps": 0}
+
+#     sorted_leaderboard = dict(sorted(leaderboard.items(), key=lambda item: item[1]['premium'], reverse=True))
+#     sorted_leaderboard = dict(list(sorted_leaderboard.items())[:20])
+    
+#     print(f"DEBUG_GSU: Final leaderboard data after filling and sorting: {sorted_leaderboard}")
+#     return sorted_leaderboard

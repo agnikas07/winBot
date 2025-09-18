@@ -75,6 +75,35 @@ async def on_member_join(member):
     view = OnboardingView()
     await member.send("Welcome to John Wetmore's Discord Server! Click the button below to get started!", view=view, delete_after=86400)
 
+
+# -- Leaderboard Timeframe View --
+class LeaderboardTimeframeView(ui.View):
+    """View with a dropdown to select weekly or monthly leaderboard."""
+    def __init__(self):
+        super().__init__(timeout=180)
+
+    @ui.select(
+        cls=ui.Select,
+        placeholder="Select Leaderboard Timeframe...",
+        options=[
+            discord.SelectOption(label="Week-To-Date", value='weekly', emoji='🏆', description='Current week sales leaderboard'),
+            discord.SelectOption(label="Month-To-Date", value='monthly', emoji='📈', description='Current month sales leaderboard')
+        ]
+    )
+    async def select_callback(self, interaction: discord.Interaction, select: ui.Select):
+        timeframe = select.values[0]
+
+        await interaction.response.edit_message(
+            content=f"Generating **{timeframe.replace('ly', '-to-Date').capitalize()}** leaderboard for the public channel... 📊",
+            view=None,
+            embed=None,
+            delete_after=15
+        )
+
+        channel = interaction.channel
+        await generate_and_post_leaderboard(channel, timeframe)
+
+
 # -- Helper to check for first sale ---
 def is_first_sale(salesperson_name: str, all_sales_data: list, headers: list, first_name_column: str, current_sale_row_index: int) -> bool:
     """
@@ -108,86 +137,144 @@ async def initialize_row_count():
         except gspread.exceptions.APIError as e:
             print(f"Error initializing row count: {e}. Retrying in 60 seconds.")
             await asyncio.sleep(60)
-            await initialize_row_count() # Retry initialization
+            await initialize_row_count()
         except Exception as e:
             print(f"An unexpected error occurred during row count initialization: {e}")
             last_known_row_count_g = 1
-            initial_check_done = False # Do not proceed if there is an unknown error
+            initial_check_done = False
     else:
         print("Sheet not available during initial row count check. Retrying in 60 seconds.")
         await asyncio.sleep(60)
-        await initialize_row_count() # Retry initialization
+        await initialize_row_count()
+
 
 # --- Reusable Leaderboard Function ---
-async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
+async def generate_and_post_leaderboard(destination: discord.abc.Messageable, timeframe: str = "weekly"):
     """
-    Fetches, formats, and posts the weekly sales leaderboard to the given destination.
-    'destination' can be a TextChannel or a commands.Context object.
+    Fetches, formats, and posts the weekly or monthly sales leaderboard to the given destination.
+    'destination' can be a TextChannel, commands.Context, or discord.Interaction object.
+    'timeframe' is "weekly" or "monthly".
     """
     row_limit = 20
 
+    if not isinstance(destination, discord.Interaction):
+        if isinstance(destination, commands.Context):
+            await destination.send(f"Generating {timeframe.capitalize()} leaderboard... 📊", delete_after=15)
+    
     sheet = await gsu.get_sheet()
     if not sheet:
-        try:
-            await destination.send("Sorry, I couldn't connect to the sales data sheet right now for the leaderboard. Please try again later.")
-        except discord.errors.Forbidden:
-            print(f"Error: Bot does not have permission to send messages in {destination}")
-        except Exception as e:
-            print(f"Error sending sheet connection error message: {e}")
+        error_msg = "Sorry, I couldn't connect to the sales data sheet right now for the leaderboard. Please try again later."
+        if isinstance(destination, discord.Interaction):
+            await destination.edit_original_response(content=error_msg, view=None)
+        else:
+            await destination.send(error_msg)
         return
 
-    if isinstance(destination, commands.Context):
-        await destination.send("Generating weekly leaderboard... 📊", delete_after=15)
-
     try:
-        leaderboard_data = await gsu.get_weekly_leaderboard_data(sheet)
+        leaderboard_data = await gsu.get_sales_leaderboard_data(sheet, timeframe)
 
         if not leaderboard_data:
-            await destination.send("No sales recorded yet this week.")
+            msg = f"No sales recorded yet this {timeframe[:-2]}."
+            if isinstance(destination, discord.Interaction):
+                await destination.edit_original_response(content=msg, view=None)
+            else:
+                await destination.send(msg)
             return
 
-        today = dt.now()
-        start_of_week = today - timedelta(days=today.weekday())
-        end_of_week = start_of_week + timedelta(days=6)
+        eastern_tz = ZoneInfo("America/New_York")
+        today = dt.now(eastern_tz)
 
-        now_utc = dt.now(tz=ZoneInfo("UTC"))
-        now_est = now_utc.astimezone(ZoneInfo("America/New_York"))
+        if timeframe == "monthly":
+            start_of_period = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            title_text = "📈 Monthly Sales Leaderboard 📈"
+            period_text = f"Sales from {start_of_period.strftime('%b %d, %Y')} to {today.strftime('%b %d, %Y')}"
+        else: # weekly
+            start_of_period = today - timedelta(days=today.weekday())
+            start_of_period = start_of_period.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_of_period = start_of_period + timedelta(days=6)
+            title_text = "🏆 Weekly Sales Leaderboard 🏆"
+            period_text = f"Sales from {start_of_period.strftime('%b %d, %Y')} to {end_of_period.strftime('%b %d, %Y')}"
+        
+        now_est = today
 
         team_total = sum(data['premium'] for data in leaderboard_data.values())
 
         embed = discord.Embed(
-            title="🏆 Weekly Sales Leaderboard 🏆",
-            description=f"Sales from {start_of_week.strftime('%b %d, %Y')} to {end_of_week.strftime('%b %d, %Y')}",
+            title=title_text,
+            description=period_text,
             color=discord.Color.gold()
         )
         embed.set_footer(text=f"Total Production: ${team_total:,.2f}\nLast updated: {now_est.strftime('%Y-%m-%d %I:%M %p %Z')}")
+        
+        custom_dbab_emoji = "<:DBAB:1369689466708557896>"
+        custom_domore_emoji = "<:DOMOREGSD:1387049213686452245>"
 
-        twenty_k_club = []
-        ten_k_club =[]
-        five_k_club = []
-        main_board = []
-        zero_board = []
+        if timeframe == "monthly":
+            club_40k = []
+            club_30k = []
+            club_20k = []
+            club_10k = []
+            club_dbab = [] # 5k - 10k
+            club_broke = [] # < 5k
 
-        for name, data in leaderboard_data.items():
-            premium = data["premium"]
-            if premium >= 20000:
-                twenty_k_club.append((name, data))
-            elif premium >= 10000:
-                ten_k_club.append((name, data))
-            elif premium >= 5000:
-                five_k_club.append((name, data))
-            elif premium > 0:
-                main_board.append((name, data))
-            else:
-                zero_board.append((name, data))
+            for name, data in leaderboard_data.items():
+                premium = data["premium"]
+                if premium >= 40000:
+                    club_40k.append((name, data))
+                elif premium >= 30000:
+                    club_30k.append((name, data))
+                elif premium >= 20000:
+                    club_20k.append((name, data))
+                elif premium >= 10000:
+                    club_10k.append((name, data))
+                elif premium >= 5000:
+                    club_dbab.append((name, data))
+                else:
+                    club_broke.append((name, data))
+            
+            all_clubs = [
+                ("\n--- 🚀 40K CLUB 🚀 ---", club_40k),
+                ("\n--- 👑 30K CLUB 👑 ---", club_30k),
+                ("\n--- ⭐ 20K CLUB ⭐ ---", club_20k),
+                ("\n--- 📈 10K CLUB 📈 ---", club_10k),
+                (f"\n--- {custom_dbab_emoji} DBAB {custom_dbab_emoji} ---", club_dbab),
+                ("\n--- 😞 BROKE 😞 ---", club_broke)
+            ]
+
+        else: 
+            twenty_k_club = []
+            ten_k_club =[]
+            five_k_club = []
+            main_board = []
+            zero_board = []
+
+            for name, data in leaderboard_data.items():
+                premium = data["premium"]
+                if premium >= 20000:
+                    twenty_k_club.append((name, data))
+                elif premium >= 10000:
+                    ten_k_club.append((name, data))
+                elif premium >= 5000:
+                    five_k_club.append((name, data))
+                elif premium > 0:
+                    main_board.append((name, data))
+                else:
+                    zero_board.append((name, data))
+            
+            all_clubs = [
+                ("\n--- 🚀 20K CLUB 🚀 ---", twenty_k_club),
+                ("\n--- 👑 10K CLUB 👑 ---", ten_k_club),
+                ("\n--- ⭐ 5K CLUB ⭐ ---", five_k_club),
+                (f"\n--- {custom_dbab_emoji} DBAB {custom_dbab_emoji} ---", main_board),
+                ("\n--- 😴 SLACKERS 😴 ---", zero_board)
+            ]
 
         position = 1
         total_people_added = 0
 
-        custom_dbab_emoji = "<:DBAB:1369689466708557896>"
-        custom_domore_emoji = "<:DOMOREGSD:1387049213686452245>"
-
         def add_person_to_embed(name, data, rank):
+            nonlocal position 
+            nonlocal total_people_added
             total_premium = data['premium']
             num_apps = data['apps']
             suffix = ""
@@ -200,88 +287,85 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable):
                 prefix = "🥉"
             else:
                 prefix = f"#{rank}"
-
-            if total_premium >= 20000:
-                suffix = "🤯"
-            elif total_premium >= 10000:
-                suffix = "🏆"
-            elif total_premium >= 5000:
-                suffix = "🤑"
-            elif total_premium >= 2500:
-                suffix = custom_domore_emoji
-            elif total_premium >= 1000:
-                suffix = custom_dbab_emoji
-            elif total_premium > 0:
-                suffix = "🤡"
-            else:
-                suffix = "💤"
+            
+            if timeframe == "monthly":
+                if total_premium >= 40000:
+                    suffix = "🔥" 
+                elif total_premium >= 30000:
+                    suffix = "💎"
+                elif total_premium >= 20000:
+                    suffix = "🤯" 
+                elif total_premium >= 10000:
+                    suffix = "🏆" 
+                elif total_premium >= 5000:
+                    suffix = "🤑" 
+                elif total_premium > 0:
+                    suffix = "🤡" 
+                else:
+                    suffix = "💤" 
+            else: 
+                if total_premium >= 20000:
+                    suffix = "🤯"
+                elif total_premium >= 10000:
+                    suffix = "🏆"
+                elif total_premium >= 5000:
+                    suffix = "🤑"
+                elif total_premium >= 2500:
+                    suffix = custom_domore_emoji
+                elif total_premium >= 1000:
+                    suffix = custom_dbab_emoji
+                elif total_premium > 0:
+                    suffix = "🤡"
+                else:
+                    suffix = "💤"
 
             apps_text = "App" if num_apps == 1 else "Apps"
             formatted_premium = f"${total_premium:,.2f}" if isinstance(total_premium, (int, float)) else str(total_premium)
             embed.add_field(name=f"{prefix} {name} {suffix}", value=f"Total Premium: **{formatted_premium}** | **{num_apps}** {apps_text}", inline=False)
 
-        if twenty_k_club and total_people_added < row_limit:
-            embed.add_field(name="\n--- 🚀 20K CLUB 🚀 ---", value="", inline=False)
-            for name, data in twenty_k_club:
-                if total_people_added >= row_limit:
-                    break
-                add_person_to_embed(name, data, position)
-                position += 1
-                total_people_added += 1
-
-        if ten_k_club and total_people_added < row_limit:
-            embed.add_field(name="\n--- 👑 10K CLUB 👑 ---", value="", inline=False)
-            for name, data in ten_k_club:
-                if total_people_added >= row_limit:
-                    break
-                add_person_to_embed(name, data, position)
-                position += 1
-                total_people_added += 1
-
-        if five_k_club and total_people_added <row_limit:
-            embed.add_field(name="\n--- ⭐ 5K CLUB ⭐ ---", value="", inline=False)
-            for name, data in five_k_club:
-                if total_people_added >= row_limit:
-                    break
-                add_person_to_embed(name, data, position)
-                position += 1
-                total_people_added += 1
-
-        if main_board and total_people_added < row_limit:
-            if ten_k_club or five_k_club:
-                embed.add_field(name=f"\n--- {custom_dbab_emoji} DBAB {custom_dbab_emoji} ---", value="", inline=False)
-            for name, data in main_board:
-                if total_people_added >= row_limit:
-                    break
-                add_person_to_embed(name, data, position)
-                position += 1
-                total_people_added += 1
-
-        if zero_board and total_people_added < row_limit:
-            if ten_k_club or five_k_club or main_board:
-                embed.add_field(name="\n--- 😴 SLACKERS 😴 ---", value="", inline=False)
-            for name, data in zero_board:
-                if total_people_added >= row_limit:
-                    break
-                add_person_to_embed(name, data, position)
-                position += 1
-                total_people_added += 1
+        for title, club_list in all_clubs:
+            if club_list and total_people_added < row_limit:
+                embed.add_field(name=title, value="", inline=False)
+                
+                for name, data in club_list:
+                    if total_people_added >= row_limit:
+                        break
+                    add_person_to_embed(name, data, position)
+                    position += 1
+                    total_people_added += 1
 
         if not embed.fields:
-            await destination.send("No sales data found for the current week to display on the leaderboard.")
+            msg = f"No sales data found for the current {timeframe[:-2]} to display on the leaderboard."
+            if isinstance(destination, discord.Interaction):
+                await destination.edit_original_response(content=msg, view=None)
+            else:
+                await destination.send(msg)
             return
+            
+        if isinstance(destination, discord.Interaction):
+            await destination.edit_original_response(content="", embed=embed, view=None)
+        else:
+            await destination.send(embed=embed)
 
-        await destination.send(embed=embed)
 
     except gspread.exceptions.APIError as e:
-        await destination.send("There was an API error trying to fetch leaderboard data from Google Sheets. Please try again later.")
+        error_msg = "There was an API error trying to fetch leaderboard data from Google Sheets. Please try again later."
+        if isinstance(destination, discord.Interaction):
+            await destination.edit_original_response(content=error_msg, view=None)
+        else:
+            await destination.send(error_msg)
         print(f"Google Sheets API Error during leaderboard generation: {e}")
     except discord.errors.Forbidden:
         print(f"Error: Bot does not have permission to send leaderboard message in {destination}")
     except Exception as e:
-        await destination.send("An unexpected error occurred while generating the leaderboard.")
+        error_msg = "An unexpected error occurred while generating the leaderboard."
+        if isinstance(destination, discord.Interaction):
+            await destination.edit_original_response(content=error_msg, view=None)
+        else:
+            await destination.send(error_msg)
         print(f"Error in generate_and_post_leaderboard: {e}")
         traceback.print_exc()
+
 
 # --- Event: Bot Ready ---
 @bot.event
@@ -320,7 +404,7 @@ async def check_for_new_sales():
             print(f"Change detected! Old rows: {last_known_row_count_g}, New rows: {current_total_rows}")
             headers = all_values_from_sheet[0] if len(all_values_from_sheet) > 0 else []
 
-            leaderboard_data = await gsu.get_weekly_leaderboard_data(sheet)
+            leaderboard_data = await gsu.get_sales_leaderboard_data(sheet, 'weekly')
             
             notification_channel_id_str = os.getenv("NOTIFICATION_CHANNEL_ID")
             first_name_column = os.getenv("FIRST_NAME_COLUMN", "Name")
@@ -412,8 +496,9 @@ async def check_for_new_sales():
 
 # --- Command: Weekly Leaderboard ---
 @bot.command(name='leaderboard', help='Displays the weekly sales leaderboard.')
-async def leaderboard_command(ctx): 
-    await generate_and_post_leaderboard(ctx)
+async def leaderboard_command(interaction: discord.Interaction): 
+    view = LeaderboardTimeframeView()
+    await interaction.send("Select the timeframe for the leaderboard:", view=view, ephemeral=True)
 
 # -- Command: test_onboarding --
 @bot.command(name='test_onboarding', help='Sends you the onboarding modal via DM.')
@@ -548,7 +633,7 @@ async def automated_leaderboard_poster():
     channel = bot.get_channel(automated_leaderboard_channel_id)
     if channel:
         print(f"Posting automated leaderboard to channel: {channel.name} ({channel.id})")
-        await generate_and_post_leaderboard(channel)
+        await generate_and_post_leaderboard(channel, 'weekly')
     else:
         print(f"Error: Automated leaderboard channel ID {automated_leaderboard_channel_id} not found or bot cannot access it.")
 
@@ -562,7 +647,7 @@ async def post_tuesday_motivation_gif():
     if not sheet:
         print("Sheet not available for Tuesday GIF check.")
 
-    leaderboard_data = await gsu.get_weekly_leaderboard_data(sheet)
+    leaderboard_data = await gsu.get_sales_leaderboard_data(sheet, 'weekly')
 
     if not leaderboard_data:
         gif_url = os.getenv("TUESDAY_NOON_GIF_URL")
