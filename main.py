@@ -155,7 +155,6 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable, ti
     'destination' can be a TextChannel, commands.Context, or discord.Interaction object.
     'timeframe' is "weekly" or "monthly".
     """
-    row_limit = 20
 
     if not isinstance(destination, discord.Interaction):
         if isinstance(destination, commands.Context):
@@ -188,7 +187,7 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable, ti
             start_of_period = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             title_text = "📈 Monthly Sales Leaderboard 📈"
             period_text = f"Sales from {start_of_period.strftime('%b %d, %Y')} to {today.strftime('%b %d, %Y')}"
-        else: # weekly
+        else:
             start_of_period = today - timedelta(days=today.weekday())
             start_of_period = start_of_period.replace(hour=0, minute=0, second=0, microsecond=0)
             end_of_period = start_of_period + timedelta(days=6)
@@ -214,8 +213,8 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable, ti
             club_30k = []
             club_20k = []
             club_10k = []
-            club_dbab = [] # 5k - 10k
-            club_broke = [] # < 5k
+            club_dbab = []
+            club_broke = []
 
             for name, data in leaderboard_data.items():
                 premium = data["premium"]
@@ -270,11 +269,19 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable, ti
             ]
 
         position = 1
-        total_people_added = 0
+        # --- BEGIN CHANGES TO ADDRESS DISCORD EMBED FIELD LIMIT ---
+        # This counter tracks all fields added to the embed, including club titles and individual members. Discord's API has a limit of 25 fields per embed.
+        total_fields_added = 0
+        # This variable stores the maximum number of fields allowed in a Discord embed.
+        max_fields = 25
+        # --- END CHANGES ---
 
         def add_person_to_embed(name, data, rank):
             nonlocal position 
-            nonlocal total_people_added
+            nonlocal total_fields_added
+            if total_fields_added >= max_fields:
+                return
+
             total_premium = data['premium']
             num_apps = data['apps']
             suffix = ""
@@ -322,17 +329,23 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable, ti
             apps_text = "App" if num_apps == 1 else "Apps"
             formatted_premium = f"${total_premium:,.2f}" if isinstance(total_premium, (int, float)) else str(total_premium)
             embed.add_field(name=f"{prefix} {name} {suffix}", value=f"Total Premium: **{formatted_premium}** | **{num_apps}** {apps_text}", inline=False)
+            total_fields_added += 1
 
         for title, club_list in all_clubs:
-            if club_list and total_people_added < row_limit:
+            if not club_list:
+                continue
+
+            if total_fields_added + 1 <= max_fields:
                 embed.add_field(name=title, value="", inline=False)
-                
-                for name, data in club_list:
-                    if total_people_added >= row_limit:
-                        break
-                    add_person_to_embed(name, data, position)
-                    position += 1
-                    total_people_added += 1
+                total_fields_added += 1
+            else:
+                break
+            
+            for name, data in club_list:
+                if total_fields_added >= max_fields:
+                    break
+                add_person_to_embed(name, data, position)
+                position += 1
 
         if not embed.fields:
             msg = f"No sales data found for the current {timeframe[:-2]} to display on the leaderboard."
