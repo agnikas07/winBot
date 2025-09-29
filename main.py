@@ -428,6 +428,7 @@ async def check_for_new_sales():
             lead_age_column = os.getenv("LEAD_AGE_COLUMN", "Lead Age")
             lead_type_column = os.getenv("LEAD_TYPE_COLUMN", "Lead Type")
             field_or_telesale_column = os.getenv("FIELD_OR_TELESALE_COLUMN", "Field or Telesale")
+            draft_date_column = os.getenv("DRAFT_DATE_COLUMN", "Draft Date")
 
             if not notification_channel_id_str:
                 print("Error: NOTIFICATION_CHANNEL_ID is not set in .env")
@@ -460,11 +461,14 @@ async def check_for_new_sales():
                     lead_age = sale_data.get(lead_age_column, "N/A")
                     lead_type = sale_data.get(lead_type_column, "N/A")
                     field_or_telesale = sale_data.get(field_or_telesale_column, "N/A")
+                    draft_date = sale_data.get(draft_date_column, "N/A")
 
                     wtd_premium = leaderboard_data.get(first_name, {}).get("premium", 0.0)
 
                     if first_name != "N/A":
                         field_or_telesale_line = f"**Field/Telesale:** {field_or_telesale}\n" if field_or_telesale and field_or_telesale != "N/A" else ""
+                        draft_date_line = f"**Draft Date:** {draft_date}\n" if draft_date and draft_date != "N/A" else ""
+
                         if is_first_sale(first_name, all_values_from_sheet, headers, first_name_column, i):
                             message = (f"🎉🎉{custom_alarm_emoji} **First Sale Alert!** {custom_alarm_emoji}🎉🎉\n\n"
                                        f"Congratulations to **{first_name}** on making their very first sale!\n"
@@ -474,6 +478,7 @@ async def check_for_new_sales():
                                        f"**Lead Type:** {lead_type}\n"
                                        f"**Lead Age:** {lead_age}\n"
                                         f"{field_or_telesale_line}"
+                                        f"{draft_date_line}"
                                        f"**Appointments Left ➔** {appointments_left}\n"
                                        f"**Week to Date Sales:** ${wtd_premium:,.2f}\n\n"
                                        f"Welcome to the scoreboard! {custom_gsd_emoji}")
@@ -486,6 +491,7 @@ async def check_for_new_sales():
                                        f"**Lead Type:** {lead_type}\n"
                                        f"**Lead Age:** {lead_age}\n"
                                         f"{field_or_telesale_line}"
+                                        f"{draft_date_line}"
                                        f"**Appointments Left ➔** {appointments_left}\n"
                                        f"**Week to Date Sales:** ${wtd_premium:,.2f}\n\n"
                                        f"{custom_gsd_emoji}")
