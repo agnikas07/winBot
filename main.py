@@ -469,7 +469,7 @@ async def check_for_new_sales():
                     if first_name != "N/A":
                         field_or_telesale_line = f"**Field/Telesale:** {field_or_telesale}\n" if field_or_telesale and field_or_telesale != "N/A" else ""
                         draft_date_line = f"**Draft Date:** {draft_date}\n" if draft_date and draft_date != "N/A" else ""
-                        face_value_line = f"**Face Value:** ${face_value}\n" if face_value and face_value != "N/A" else ""
+                        face_value_line = f"**Face Amount:** ${face_value}\n" if face_value and face_value != "N/A" else ""
                         apps_text = "App" if wtd_apps == 1 else "Apps"
 
                         if is_first_sale(first_name, all_values_from_sheet, headers, first_name_column, i):
