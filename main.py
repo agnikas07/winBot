@@ -269,12 +269,10 @@ async def generate_and_post_leaderboard(destination: discord.abc.Messageable, ti
             ]
 
         position = 1
-        # --- BEGIN CHANGES TO ADDRESS DISCORD EMBED FIELD LIMIT ---
         # This counter tracks all fields added to the embed, including club titles and individual members. Discord's API has a limit of 25 fields per embed.
         total_fields_added = 0
         # This variable stores the maximum number of fields allowed in a Discord embed.
         max_fields = 25
-        # --- END CHANGES ---
 
         def add_person_to_embed(name, data, rank):
             nonlocal position 
@@ -429,6 +427,7 @@ async def check_for_new_sales():
             lead_type_column = os.getenv("LEAD_TYPE_COLUMN", "Lead Type")
             field_or_telesale_column = os.getenv("FIELD_OR_TELESALE_COLUMN", "Field or Telesale")
             draft_date_column = os.getenv("DRAFT_DATE_COLUMN", "Draft Date")
+            face_value_column = os.getenv("FACE_VALUE_COLUMN", "Face Value")
 
             if not notification_channel_id_str:
                 print("Error: NOTIFICATION_CHANNEL_ID is not set in .env")
@@ -462,6 +461,7 @@ async def check_for_new_sales():
                     lead_type = sale_data.get(lead_type_column, "N/A")
                     field_or_telesale = sale_data.get(field_or_telesale_column, "N/A")
                     draft_date = sale_data.get(draft_date_column, "N/A")
+                    face_value = sale_data.get(face_value_column, "N/A")
 
                     wtd_premium = leaderboard_data.get(first_name, {}).get("premium", 0.0)
                     wtd_apps = leaderboard_data.get(first_name, {}).get("apps", 0)
@@ -469,12 +469,14 @@ async def check_for_new_sales():
                     if first_name != "N/A":
                         field_or_telesale_line = f"**Field/Telesale:** {field_or_telesale}\n" if field_or_telesale and field_or_telesale != "N/A" else ""
                         draft_date_line = f"**Draft Date:** {draft_date}\n" if draft_date and draft_date != "N/A" else ""
+                        face_value_line = f"**Face Value:** ${face_value}\n" if face_value and face_value != "N/A" else ""
                         apps_text = "App" if wtd_apps == 1 else "Apps"
 
                         if is_first_sale(first_name, all_values_from_sheet, headers, first_name_column, i):
                             message = (f"🎉🎉{custom_alarm_emoji} **First Sale Alert!** {custom_alarm_emoji}🎉🎉\n\n"
                                        f"Congratulations to **{first_name}** on making their very first sale!\n"
                                        f"**Sale Type:** {sale_type}\n"
+                                       f"{face_value_line}"
                                        f"**Annual Premium:** ${premium}\n"
                                        f"**Carrier:** {carrier}\n"
                                        f"**Lead Type:** {lead_type}\n"
@@ -488,6 +490,7 @@ async def check_for_new_sales():
                             message = (f"{custom_alarm_emoji} **New Sale!** {custom_alarm_emoji}\n\n"
                                        f"{first_name} just made a sale!\n"
                                        f"**Sale Type:** {sale_type}\n"
+                                       f"{face_value_line}"
                                        f"**Annual Premium:** ${premium}\n"
                                        f"**Carrier:** {carrier}\n"
                                        f"**Lead Type:** {lead_type}\n"
