@@ -418,6 +418,7 @@ async def check_for_new_sales():
             leaderboard_data = await gsu.get_sales_leaderboard_data(sheet, 'weekly')
             
             notification_channel_id_str = os.getenv("NOTIFICATION_CHANNEL_ID")
+            chat_channel_id_str = os.getenv("CHAT_CHANNEL_ID")
             first_name_column = os.getenv("FIRST_NAME_COLUMN", "Name")
             sale_type_column = os.getenv("SALE_TYPE_COLUMN", "Sale Type")
             premium_column = os.getenv("PREMIUM_COLUMN", "Premium")
@@ -436,12 +437,14 @@ async def check_for_new_sales():
 
             try:
                 notification_channel_id = int(notification_channel_id_str)
+                chat_channel_id = int(chat_channel_id_str)
             except ValueError:
                 print(f"Error: NOTIFICATION_CHANNEL_ID '{notification_channel_id_str}' is not a valid integer.")
                 last_known_row_count_g = current_total_rows
                 return
 
             notification_channel = bot.get_channel(notification_channel_id)
+            chat_channel = bot.get_channel(chat_channel_id)
             if not notification_channel:
                 print(f"Error: Notification channel ID {notification_channel_id} not found.")
                 last_known_row_count_g = current_total_rows
@@ -502,6 +505,7 @@ async def check_for_new_sales():
                                        f"{custom_gsd_emoji}")
                         
                         await notification_channel.send(message)
+                        await chat_channel.send(message)
                     else:
                         print(f"Skipping notification for incomplete sale data: {sale_data}")
 
